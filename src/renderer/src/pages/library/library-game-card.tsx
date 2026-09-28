@@ -145,6 +145,7 @@ export const LibraryGameCard = memo(function LibraryGameCard({
   const showPlatformBadge =
     !hideClassicsBadges && Boolean(classicsPlatformLabel);
   const showReadyBadge = !hideReadySizeBadges && isInstalled;
+  const isCustomGame = game.shop === "custom";
 
   const handleImageError = () => {
     logger.warn(`Image failed to load for ${game.title}`, {
@@ -257,8 +258,22 @@ export const LibraryGameCard = memo(function LibraryGameCard({
             </div>
           )}
 
-          {(showSteamLibraryBadge || showPlatformBadge || showReadyBadge) && (
+          {(showSteamLibraryBadge ||
+            showPlatformBadge ||
+            showReadyBadge ||
+            isCustomGame) && (
             <div className="library-game-card__top-right">
+              {isCustomGame && (
+                <div
+                  className="library-game-card__custom-badge"
+                  title={t("custom_game_badge_tooltip")}
+                >
+                  <span className="library-game-card__custom-text">
+                    {t("custom_game_badge")}
+                  </span>
+                </div>
+              )}
+
               {showSteamLibraryBadge && <SteamLibraryBadge />}
 
               {showPlatformBadge && (
