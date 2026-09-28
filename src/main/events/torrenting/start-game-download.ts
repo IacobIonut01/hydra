@@ -33,6 +33,11 @@ const startGameDownload = async (
     fileSize,
     fileIndices,
     selectedFilesSize,
+    downloadSourceId,
+    downloadSourceName,
+    repackTitle,
+    automaticallyInstall,
+    installPath,
   } = payload;
 
   const parsedFileSize = parseBytes(fileSize ?? null);
@@ -70,6 +75,11 @@ const startGameDownload = async (
       selectedFilesSize,
       fileSize: selectedFilesSize ?? parsedFileSize,
       customTrackers: globalTrackers,
+      downloadSourceId,
+      downloadSourceName,
+      repackTitle,
+      automaticallyInstall,
+      installPath: installPath ?? null,
     };
     if (!prepareRealDebridInBackground) {
       try {

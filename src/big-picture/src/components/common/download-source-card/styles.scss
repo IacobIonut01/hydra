@@ -96,6 +96,14 @@
     box-sizing: border-box;
   }
 
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing-unit) * 4);
+    flex: 0 0 auto;
+    padding-bottom: calc(var(--spacing-unit) * 2);
+  }
+
   &__remove-button {
     flex: 0 0 auto;
     min-width: 176px;

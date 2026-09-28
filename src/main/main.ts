@@ -28,6 +28,7 @@ import {
   logger,
   migrateCloudSaveAutomaticSyncDefaults,
   groupedSouvenirWorker,
+  reconcileInstallsOnStartup,
 } from "@main/services";
 import { migrateDownloadSources } from "./helpers/migrate-download-sources";
 import { getDirSize } from "./services/download/helpers";
@@ -129,6 +130,10 @@ export const loadState = async () => {
 
   const downloadToResume =
     await DownloadOrchestrator.bootstrapDownloadsOnStartup();
+
+  await reconcileInstallsOnStartup().catch((error) =>
+    logger.warn("Failed to reconcile installs on startup", error)
+  );
   const normalizedDownloads = await downloadsSublevel
     .values()
     .all()

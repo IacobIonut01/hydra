@@ -21,6 +21,7 @@ import { WorkWonders } from "workwonders-sdk";
 
 import {
   clearExtraction,
+  clearInstall,
   closeToast,
   failClassicsScan,
   failRetroArchScan,
@@ -30,6 +31,7 @@ import {
   hydrateRetroArchScan,
   setExtractionProgress,
   setGameRunning,
+  setInstallProgress,
   setProfileBackground,
   setStreamingSession,
   setUserDetails,
@@ -532,6 +534,46 @@ export function App() {
         showErrorToast(
           t("extraction_failed_title", { ns: "downloads" }),
           t("extraction_failed_description", { ns: "downloads" })
+        );
+      }),
+      window.electron.onInstallProgress((shop, objectId, bytesWritten) => {
+        dispatch(setInstallProgress({ shop, objectId, bytesWritten }));
+      }),
+      window.electron.onInstallComplete(() => {
+        dispatch(clearInstall());
+        updateLibrary();
+      }),
+      window.electron.onInstallFailed((_shop, _objectId, failure) => {
+        dispatch(clearInstall());
+        updateLibrary();
+
+        if (failure?.reason === "insufficient-space") {
+          showErrorToast(
+            t("install_insufficient_space_title", { ns: "downloads" }),
+            t("install_insufficient_space_description", { ns: "downloads" })
+          );
+          return;
+        }
+
+        if (failure?.reason === "needs-interaction") {
+          showErrorToast(
+            t("install_needs_interaction_title", { ns: "downloads" }),
+            t("install_needs_interaction_description", { ns: "downloads" })
+          );
+          return;
+        }
+
+        if (failure?.reason === "no-installer") {
+          showErrorToast(
+            t("install_no_installer_title", { ns: "downloads" }),
+            t("install_no_installer_description", { ns: "downloads" })
+          );
+          return;
+        }
+
+        showErrorToast(
+          t("install_failed_title", { ns: "downloads" }),
+          t("install_failed_description", { ns: "downloads" })
         );
       }),
       window.electron.onGameExecutableNotFound(() => {

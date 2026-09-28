@@ -11,6 +11,8 @@ export const LANGUAGE_SECTION_BUTTON_ID = "language-section-button";
 export const BEHAVIOR_SECTION_REGION_ID = "behavior-section-region";
 export const DOWNLOADS_BEHAVIOR_SECTION_REGION_ID =
   "downloads-behavior-section-region";
+export const AUTO_INSTALL_SECTION_REGION_ID = "auto-install-section-region";
+export const AUTO_INSTALL_DIRECTORY_BUTTON_ID = "auto-install-directory-button";
 export const DOWNLOADS_SOURCES_SECTION_REGION_ID =
   "downloads-sources-section-region";
 export const DOWNLOADS_SOURCES_ACTIONS_REGION_ID =
@@ -127,6 +129,16 @@ export const DOWNLOADS_BEHAVIOR_ITEM_FOCUS_IDS = {
   createStartMenuShortcut: "downloads-behavior-create-start-menu-shortcut",
 } as const;
 
+export const AUTO_INSTALL_ITEM_FOCUS_IDS = {
+  autoInstallRepacks: "auto-install-repacks",
+  installDirectory: "auto-install-directory",
+  installDirectoryReset: "auto-install-directory-reset",
+  autoInstallInteractive: "auto-install-interactive",
+  launchAfterInstall: "auto-install-launch-after",
+  deleteInstallerFilesAfterInstall: "auto-install-delete-installer-files",
+  pauseSeedingWhileInstalling: "auto-install-pause-seeding",
+} as const;
+
 export const NOTIFICATIONS_LIBRARY_ITEM_FOCUS_IDS = {
   downloadNotificationsEnabled: "notifications-library-download-notifications",
   repackUpdatesNotificationsEnabled:
@@ -217,8 +229,18 @@ export function getLastDownloadsBehaviorItemFocusId(
     : DOWNLOADS_BEHAVIOR_ITEM_FOCUS_IDS.deleteArchiveFilesAfterExtractionByDefault;
 }
 
+export function getLastAutoInstallItemFocusId(autoInstallEnabled: boolean) {
+  return autoInstallEnabled
+    ? AUTO_INSTALL_ITEM_FOCUS_IDS.pauseSeedingWhileInstalling
+    : AUTO_INSTALL_ITEM_FOCUS_IDS.autoInstallRepacks;
+}
+
 export function getDownloadsSourceRemoveButtonFocusId(sourceId: string) {
   return `downloads-source-remove-${sourceId}`;
+}
+
+export function getDownloadsSourceAutoInstallFocusId(sourceId: string) {
+  return `downloads-source-auto-install-${sourceId}`;
 }
 
 export function getCompatibilityProtonOptionFocusId(path: string) {

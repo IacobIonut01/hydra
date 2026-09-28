@@ -7,6 +7,7 @@ export interface DownloadsHeroProgressPanelState {
   progressLabel: string;
   transferLabel: string;
   etaLabel: string;
+  indeterminate?: boolean;
 }
 
 export interface DownloadsHeroNetworkPanelState {

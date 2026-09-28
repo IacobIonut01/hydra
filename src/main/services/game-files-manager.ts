@@ -154,6 +154,7 @@ export class GameFilesManager {
 
     await this.searchAndBindExecutable();
     await this.autoLinkClassicsDiscs();
+    await this.maybeAutoInstallRepack();
   }
 
   private readonly handleProgress = (progress: ExtractionProgress) => {
@@ -340,6 +341,7 @@ export class GameFilesManager {
 
     await this.searchAndBindExecutable();
     await this.autoLinkClassicsDiscs();
+    await this.maybeAutoInstallRepack();
   }
 
   private async persistLinkedDiscs(
@@ -478,6 +480,20 @@ export class GameFilesManager {
       logger.error(
         `[GameFilesManager] Error auto-linking classics discs: ${this.objectId}`,
         err
+      );
+    }
+  }
+
+  async maybeAutoInstallRepack(): Promise<void> {
+    try {
+      const { maybeEnqueueInstallFromPipeline } = await import(
+        "./install/auto-install-manager"
+      );
+      await maybeEnqueueInstallFromPipeline(this.shop, this.objectId);
+    } catch (error) {
+      logger.error(
+        `[GameFilesManager] Auto-install evaluation failed for ${this.objectId}`,
+        error
       );
     }
   }

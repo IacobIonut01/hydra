@@ -944,6 +944,22 @@ export default function Game() {
     [game, navigate, openGame, showErrorToast, showSuccessToast, updateGame]
   );
 
+  const handleInstallGame = useCallback(async () => {
+    if (!game) return;
+
+    const response = await globalThis.window.electron.installGame(
+      game.shop,
+      game.objectId
+    );
+
+    if (!response.ok) {
+      showErrorToast("Install failed", {
+        message:
+          "Hydra couldn't start the installer. Try again from the Downloads page.",
+      });
+    }
+  }, [game, showErrorToast]);
+
   const handlePlayGame = useCallback(async () => {
     if (!game) return;
 
@@ -1457,6 +1473,7 @@ export default function Game() {
             toggleFavorite={toggleFavorite}
             onPlay={handlePlayGame}
             onDownload={handleOpenDownloadModal}
+            onInstall={handleInstallGame}
             onAddToLibrary={handleAddToLibrary}
             onOpenDownloadOptions={handleOpenDownloadModal}
             onOpenSettings={() => setIsGameSettingsModalOpen(true)}

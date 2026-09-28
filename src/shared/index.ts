@@ -51,6 +51,7 @@ export * from "./epic-description-links";
 export * from "./tracker-list";
 export * from "./souvenirs";
 export * from "./souvenir-sync";
+export * from "./repack-install-strategy";
 
 export class UserNotLoggedInError extends Error {
   constructor() {

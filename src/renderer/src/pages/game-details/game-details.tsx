@@ -113,6 +113,8 @@ export default function GameDetails() {
             fileIndices?: number[],
             selectedFilesSize?: number | null,
             automaticallyDeleteArchiveFiles = false,
+            automaticallyInstall?: boolean,
+            installPath?: string | null,
             signal?: AbortSignal
           ) => {
             const payload = {
@@ -127,6 +129,11 @@ export default function GameDetails() {
               fileSize: repack.fileSize,
               fileIndices,
               selectedFilesSize,
+              downloadSourceId: repack.downloadSourceId,
+              downloadSourceName: repack.downloadSourceName,
+              repackTitle: repack.title,
+              automaticallyInstall,
+              installPath,
             };
 
             const response = addToQueueOnly

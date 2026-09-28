@@ -103,6 +103,7 @@ import type {
   SteamSyncRunStatus,
   SteamConnectErrorCode,
   ExtractionFailure,
+  InstallFailure,
 } from "@types";
 import type { AxiosProgressEvent } from "axios";
 
@@ -454,10 +455,18 @@ declare global {
     getLibrary: () => Promise<LibraryGame[]>;
     refreshLibraryAssets: () => Promise<void>;
     openGameInstaller: (shop: GameShop, objectId: string) => Promise<boolean>;
+    installGame: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<{ ok: boolean; result: string }>;
+    cancelGameInstall: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<{ ok: boolean; cancelled: boolean }>;
     getGameInstallerActionType: (
       shop: GameShop,
       objectId: string
-    ) => Promise<"install" | "open-folder">;
+    ) => Promise<"install" | "open-folder" | "installing">;
     openGameInstallerPath: (shop: GameShop, objectId: string) => Promise<void>;
     openGameWinetricks: (shop: GameShop, objectId: string) => Promise<boolean>;
     openGameExecutablePath: (shop: GameShop, objectId: string) => Promise<void>;
@@ -908,6 +917,19 @@ declare global {
         objectId: string,
         failure: ExtractionFailure | null
       ) => void
+    ) => () => Electron.IpcRenderer;
+    onInstallProgress: (
+      cb: (shop: GameShop, objectId: string, bytesWritten: number) => void
+    ) => () => Electron.IpcRenderer;
+    onInstallComplete: (
+      cb: (
+        shop: GameShop,
+        objectId: string,
+        installedPath: string | null
+      ) => void
+    ) => () => Electron.IpcRenderer;
+    onInstallFailed: (
+      cb: (shop: GameShop, objectId: string, failure: InstallFailure) => void
     ) => () => Electron.IpcRenderer;
     onDownloadHalted: (
       cb: (gameTitle: string) => void

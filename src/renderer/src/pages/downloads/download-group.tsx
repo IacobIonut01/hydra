@@ -257,6 +257,8 @@ interface HeroDownloadViewProps {
   game: LibraryGame;
   isGameDownloading: boolean;
   isGameExtracting?: boolean;
+  isGameInstalling?: boolean;
+  installBytesWritten?: number;
   downloadSpeed: number;
   finalDownloadSize: string;
   peakSpeed: number;
@@ -269,6 +271,7 @@ interface HeroDownloadViewProps {
   pauseDownload: (shop: GameShop, objectId: string) => void;
   resumeDownload: (shop: GameShop, objectId: string) => void;
   onCancelClick: (shop: GameShop, objectId: string) => void;
+  onCancelInstallClick: (shop: GameShop, objectId: string) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
 }
 
@@ -276,6 +279,8 @@ function HeroDownloadView({
   game,
   isGameDownloading,
   isGameExtracting = false,
+  isGameInstalling = false,
+  installBytesWritten = 0,
   downloadSpeed,
   finalDownloadSize,
   peakSpeed,
@@ -288,6 +293,7 @@ function HeroDownloadView({
   pauseDownload,
   resumeDownload,
   onCancelClick,
+  onCancelInstallClick,
   t,
 }: Readonly<HeroDownloadViewProps>) {
   const navigate = useNavigate();
@@ -298,10 +304,11 @@ function HeroDownloadView({
   }, [navigate, game]);
 
   const etaText = calculateETA();
-  const isRecovering = !isGameExtracting && !!lastPacket?.isRecovering;
+  const isPostProcessing = isGameExtracting || isGameInstalling;
+  const isRecovering = !isPostProcessing && !!lastPacket?.isRecovering;
   const hasEta =
     isGameDownloading &&
-    !isGameExtracting &&
+    !isPostProcessing &&
     !lastPacket?.isCheckingFiles &&
     !isRecovering &&
     !!etaText &&
@@ -309,14 +316,14 @@ function HeroDownloadView({
     etaText !== "0";
   const shouldShowEtaPlaceholder =
     isGameDownloading &&
-    !isGameExtracting &&
+    !isPostProcessing &&
     !lastPacket?.isCheckingFiles &&
     !isRecovering &&
     !hasEta;
   const shouldShowEta = hasEta || shouldShowEtaPlaceholder;
   const recoveryPercent = Math.round((lastPacket?.recoveryProgress ?? 0) * 100);
   const isReconnecting =
-    !isGameExtracting && !isRecovering && !!lastPacket?.isReconnecting;
+    !isPostProcessing && !isRecovering && !!lastPacket?.isReconnecting;
 
   return (
     <div className="download-group download-group--hero">
@@ -368,6 +375,11 @@ function HeroDownloadView({
                     {t("extracting")}
                   </span>
                 )}
+                {isGameInstalling && (
+                  <span className="download-group__progress-status">
+                    {t("installing")}
+                  </span>
+                )}
                 {!isGameExtracting && lastPacket?.isCheckingFiles && (
                   <span className="download-group__progress-status">
                     {t("checking_files")}
@@ -383,7 +395,7 @@ function HeroDownloadView({
                     {t("reconnecting")}
                   </span>
                 )}
-                {!isGameExtracting &&
+                {!isPostProcessing &&
                   !lastPacket?.isCheckingFiles &&
                   !isReconnecting &&
                   !isRecovering && (
@@ -397,7 +409,7 @@ function HeroDownloadView({
                 <span></span>
               </div>
               <div className="download-group__progress-info-row">
-                {!lastPacket?.isCheckingFiles && !isGameExtracting && (
+                {!lastPacket?.isCheckingFiles && !isPostProcessing && (
                   <span className="download-group__progress-time">
                     {shouldShowEta && (
                       <>
@@ -407,20 +419,33 @@ function HeroDownloadView({
                     )}
                   </span>
                 )}
+                {isGameInstalling && installBytesWritten > 0 && (
+                  <span className="download-group__progress-time">
+                    {t("install_bytes_written", {
+                      size: formatBytes(installBytesWritten),
+                    })}
+                  </span>
+                )}
                 <span className="download-group__progress-percentage">
-                  <AnimatedPercentage value={currentProgress} />
+                  {isGameInstalling ? (
+                    formatBytes(installBytesWritten)
+                  ) : (
+                    <AnimatedPercentage value={currentProgress} />
+                  )}
                 </span>
               </div>
               <div className="download-group__progress-bar">
                 <div
-                  className={`download-group__progress-fill ${isGameExtracting ? "download-group__progress-fill--extraction" : ""}`}
+                  className={`download-group__progress-fill ${isGameExtracting ? "download-group__progress-fill--extraction" : ""} ${isGameInstalling ? "download-group__progress-fill--installing" : ""}`}
                   style={{
-                    width: `${currentProgress * 100}%`,
+                    width: isGameInstalling
+                      ? undefined
+                      : `${currentProgress * 100}%`,
                   }}
                 />
               </div>
             </div>
-            {!isGameExtracting && (
+            {!isPostProcessing && (
               <div className="download-group__hero-buttons">
                 {isGameDownloading ? (
                   <button
@@ -448,6 +473,18 @@ function HeroDownloadView({
                 >
                   <XCircleIcon size={14} />
                   {t("cancel")}
+                </button>
+              </div>
+            )}
+            {isGameInstalling && (
+              <div className="download-group__hero-buttons">
+                <button
+                  type="button"
+                  onClick={() => onCancelInstallClick(game.shop, game.objectId)}
+                  className="download-group__glass-btn"
+                >
+                  <XCircleIcon size={14} />
+                  {t("cancel_install")}
                 </button>
               </div>
             )}
@@ -552,6 +589,7 @@ export function DownloadGroup({
   );
 
   const extraction = useAppSelector((state) => state.download.extraction);
+  const install = useAppSelector((state) => state.download.install);
 
   const { updateLibrary } = useLibrary();
 
@@ -630,8 +668,12 @@ export function DownloadGroup({
   const [gameToCancelObjectId, setGameToCancelObjectId] = useState<
     string | null
   >(null);
+  const [installToCancel, setInstallToCancel] = useState<{
+    shop: GameShop;
+    objectId: string;
+  } | null>(null);
   const [gameActionTypes, setGameActionTypes] = useState<
-    Record<string, "install" | "open-folder">
+    Record<string, "install" | "open-folder" | "installing">
   >({});
 
   const extractDominantColor = useCallback(
@@ -774,6 +816,32 @@ export function DownloadGroup({
     [updateLibrary]
   );
 
+  const installGame = useCallback(
+    async (shop: GameShop, objectId: string) => {
+      await window.electron.installGame(shop, objectId);
+      updateLibrary();
+    },
+    [updateLibrary]
+  );
+
+  const handleCancelInstallClick = useCallback(
+    (shop: GameShop, objectId: string) => {
+      setInstallToCancel({ shop, objectId });
+    },
+    []
+  );
+
+  const handleConfirmCancelInstall = useCallback(async () => {
+    if (installToCancel) {
+      await window.electron.cancelGameInstall(
+        installToCancel.shop,
+        installToCancel.objectId
+      );
+      updateLibrary();
+    }
+    setInstallToCancel(null);
+  }, [installToCancel, updateLibrary]);
+
   const handleCancelClick = useCallback((shop: GameShop, objectId: string) => {
     setGameToCancelShop(shop);
     setGameToCancelObjectId(objectId);
@@ -821,6 +889,14 @@ export function DownloadGroup({
           icon: <FileDirectoryIcon />,
           onClick: () => {
             extractGameDownload(game.shop, game.objectId);
+          },
+        },
+        {
+          label: t("cancel_install"),
+          icon: <XCircleIcon />,
+          show: game.download?.installing === true,
+          onClick: () => {
+            handleCancelInstallClick(game.shop, game.objectId);
           },
         },
         {
@@ -965,7 +1041,10 @@ export function DownloadGroup({
       });
 
       const results = await Promise.all(actionTypesPromises);
-      const newActionTypes: Record<string, "install" | "open-folder"> = {};
+      const newActionTypes: Record<
+        string,
+        "install" | "open-folder" | "installing"
+      > = {};
       results.forEach(({ gameId, actionType }) => {
         newActionTypes[gameId] = actionType;
       });
@@ -985,8 +1064,9 @@ export function DownloadGroup({
   if (isDownloadingGroup && library.length > 0) {
     const game = library[0];
     const isGameExtracting = extraction?.visibleId === game.id;
+    const isGameInstalling = game.download?.installing === true;
     const isGameDownloading =
-      isGameDownloadingMap[game.id] && !isGameExtracting;
+      isGameDownloadingMap[game.id] && !isGameExtracting && !isGameInstalling;
     const downloadSpeed = isGameDownloading
       ? (lastPacket?.downloadSpeed ?? 0)
       : 0;
@@ -1020,10 +1100,23 @@ export function DownloadGroup({
           onConfirm={handleConfirmCancel}
           onClose={handleCancelModalClose}
         />
+        <ConfirmationModal
+          visible={installToCancel !== null}
+          title={t("cancel_install")}
+          descriptionText={t("cancel_install_description")}
+          confirmButtonLabel={t("yes_cancel")}
+          cancelButtonLabel={t("keep_installing")}
+          onConfirm={handleConfirmCancelInstall}
+          onClose={() => setInstallToCancel(null)}
+        />
         <HeroDownloadView
           game={game}
           isGameDownloading={isGameDownloading}
           isGameExtracting={isGameExtracting}
+          isGameInstalling={isGameInstalling}
+          installBytesWritten={
+            install?.visibleId === game.id ? install.bytesWritten : 0
+          }
           downloadSpeed={downloadSpeed}
           finalDownloadSize={finalDownloadSize}
           peakSpeed={peakSpeed}
@@ -1036,6 +1129,7 @@ export function DownloadGroup({
           pauseDownload={pauseDownload}
           resumeDownload={resumeDownload}
           onCancelClick={handleCancelClick}
+          onCancelInstallClick={handleCancelInstallClick}
           t={t}
         />
       </>
@@ -1052,6 +1146,15 @@ export function DownloadGroup({
         cancelButtonLabel={t("keep_downloading")}
         onConfirm={handleConfirmCancel}
         onClose={handleCancelModalClose}
+      />
+      <ConfirmationModal
+        visible={installToCancel !== null}
+        title={t("cancel_install")}
+        descriptionText={t("cancel_install_description")}
+        confirmButtonLabel={t("yes_cancel")}
+        cancelButtonLabel={t("keep_installing")}
+        onConfirm={handleConfirmCancelInstall}
+        onClose={() => setInstallToCancel(null)}
       />
       <div
         className={`download-group ${isQueuedGroup ? "download-group--queued" : ""} ${isCompletedGroup ? "download-group--completed" : ""}`}
@@ -1095,7 +1198,16 @@ export function DownloadGroup({
                       </Badge>
                     </div>
                     <div className="download-group__simple-meta-row">
-                      {extraction?.visibleId === game.id ? (
+                      {game.download?.installing ? (
+                        <span className="download-group__simple-extracting">
+                          {install?.visibleId === game.id &&
+                          install.bytesWritten > 0
+                            ? t("install_bytes_written", {
+                                size: formatBytes(install.bytesWritten),
+                              })
+                            : t("installing")}
+                        </span>
+                      ) : extraction?.visibleId === game.id ? (
                         <span className="download-group__simple-extracting">
                           {t("extracting")} (
                           {Math.round(extraction.progress * 100)}%)
@@ -1106,6 +1218,12 @@ export function DownloadGroup({
                           {size}
                         </span>
                       )}
+                      {game.download?.installFailure &&
+                        !game.download?.installing && (
+                          <span className="download-group__simple-install-error">
+                            {t("install_needs_attention")}
+                          </span>
+                        )}
                       {game.download?.progress === 1 && seeding && (
                         <span className="download-group__simple-seeding">
                           {t("seeding")}
@@ -1140,12 +1258,30 @@ export function DownloadGroup({
                       const actionType =
                         gameActionTypes[game.id] || "open-folder";
                       const isInstall = actionType === "install";
+                      const isInstalling =
+                        game.download?.installing === true ||
+                        actionType === "installing";
+
+                      if (isInstalling) {
+                        return (
+                          <Button
+                            theme="primary"
+                            disabled
+                            className="download-group__simple-action-btn"
+                          >
+                            <DownloadIcon size={16} />
+                            {t("installing")}
+                          </Button>
+                        );
+                      }
 
                       return (
                         <Button
                           theme="primary"
                           onClick={() =>
-                            openGameInstaller(game.shop, game.objectId)
+                            isInstall
+                              ? installGame(game.shop, game.objectId)
+                              : openGameInstaller(game.shop, game.objectId)
                           }
                           disabled={isGameDeleting(game.id)}
                           className="download-group__simple-action-btn"

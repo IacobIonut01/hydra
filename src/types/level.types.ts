@@ -1,4 +1,5 @@
 import type { Downloader } from "@shared";
+import type { InstallFailure } from "./index";
 import type { GameShop } from "./game.types";
 import type { DownloadStatus } from "./download.types";
 import type { HydraDisplayBounds } from "./display.types";
@@ -111,6 +112,15 @@ export interface Download {
   realDebridTorrentId?: string;
   awaitingDebrid?: boolean;
   customTrackers?: string[];
+  downloadSourceId?: string;
+  downloadSourceName?: string;
+  repackTitle?: string;
+  automaticallyInstall?: boolean;
+  installPath?: string | null;
+  installing?: boolean;
+  installStartedAt?: number;
+  installFailure?: InstallFailure | null;
+  installedPath?: string | null;
 }
 
 export interface DownloadLayoutState {
@@ -180,6 +190,13 @@ export interface UserPreferences {
   showDownloadSpeedInMegabytes?: boolean;
   extractFilesByDefault?: boolean;
   deleteArchiveFilesAfterExtractionByDefault?: boolean;
+  autoInstallRepacks?: boolean;
+  autoInstallInteractive?: boolean;
+  installPath?: string | null;
+  deleteInstallerFilesAfterInstall?: boolean;
+  pauseSeedingWhileInstalling?: boolean;
+  launchAfterInstall?: boolean;
+  autoInstallExcludedSourceIds?: string[];
   enableSteamAchievements?: boolean;
   enableAchievementSouvenirs?: boolean;
   achievementScreenshotsPath?: string;

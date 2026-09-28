@@ -350,6 +350,15 @@ export function HeroPanelActions() {
     const isPlayableClassics =
       game?.shop === "launchbox" && (game?.discs?.length ?? 0) > 0;
 
+    if (game?.download?.installing) {
+      return (
+        <Button theme="outline" disabled className="hero-panel-actions__action">
+          <DownloadIcon />
+          {t("installing", { ns: "downloads" })}
+        </Button>
+      );
+    }
+
     if (game?.executablePath || isPlayableClassics) {
       return (
         <Button

@@ -75,6 +75,7 @@ import type {
   SteamSyncRunStatus,
   SteamConnectErrorCode,
   ExtractionFailure,
+  InstallFailure,
 } from "@types";
 import type { AuthPage, Downloader } from "@shared";
 import type { AxiosProgressEvent } from "axios";
@@ -1057,6 +1058,10 @@ contextBridge.exposeInMainWorld("electron", {
   } | null> => ipcRenderer.invoke("getActiveClassicsImport"),
   openGameInstaller: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("openGameInstaller", shop, objectId),
+  installGame: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("installGame", shop, objectId),
+  cancelGameInstall: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("cancelGameInstall", shop, objectId),
   getGameInstallerActionType: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("getGameInstallerActionType", shop, objectId),
   openGameInstallerPath: (shop: GameShop, objectId: string) =>
@@ -1226,6 +1231,42 @@ contextBridge.exposeInMainWorld("electron", {
     ) => cb(shop, objectId, failure);
     ipcRenderer.on("on-extraction-failed", listener);
     return () => ipcRenderer.removeListener("on-extraction-failed", listener);
+  },
+  onInstallProgress: (
+    cb: (shop: GameShop, objectId: string, bytesWritten: number) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      shop: GameShop,
+      objectId: string,
+      bytesWritten: number
+    ) => cb(shop, objectId, bytesWritten);
+    ipcRenderer.on("on-install-progress", listener);
+    return () => ipcRenderer.removeListener("on-install-progress", listener);
+  },
+  onInstallComplete: (
+    cb: (shop: GameShop, objectId: string, installedPath: string | null) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      shop: GameShop,
+      objectId: string,
+      installedPath: string | null
+    ) => cb(shop, objectId, installedPath);
+    ipcRenderer.on("on-install-complete", listener);
+    return () => ipcRenderer.removeListener("on-install-complete", listener);
+  },
+  onInstallFailed: (
+    cb: (shop: GameShop, objectId: string, failure: InstallFailure) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      shop: GameShop,
+      objectId: string,
+      failure: InstallFailure
+    ) => cb(shop, objectId, failure);
+    ipcRenderer.on("on-install-failed", listener);
+    return () => ipcRenderer.removeListener("on-install-failed", listener);
   },
   onDownloadHalted: (cb: (gameTitle: string) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, gameTitle: string) =>

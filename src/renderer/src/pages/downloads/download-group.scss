@@ -478,6 +478,14 @@
     letter-spacing: 0.5px;
   }
 
+  &__simple-install-error {
+    color: #f87171;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
   &__simple-progress {
     display: flex;
     flex-direction: column;
@@ -544,5 +552,19 @@
     &--extraction {
       background-color: #fff;
     }
+
+    &--installing {
+      width: 40%;
+      animation: download-group-install-slide 1.4s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes download-group-install-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(260%);
   }
 }

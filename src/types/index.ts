@@ -167,6 +167,11 @@ export interface StartGameDownloadPayload {
   fileSize?: string | null;
   fileIndices?: number[];
   selectedFilesSize?: number | null;
+  downloadSourceId?: string;
+  downloadSourceName?: string;
+  repackTitle?: string;
+  automaticallyInstall?: boolean;
+  installPath?: string | null;
 }
 
 export interface UserFriend {
@@ -550,6 +555,8 @@ export type NotificationType =
 
 export type LocalNotificationType =
   | "EXTRACTION_COMPLETE"
+  | "INSTALL_COMPLETE"
+  | "INSTALL_FAILED"
   | "DOWNLOAD_COMPLETE"
   | "UPDATE_AVAILABLE"
   | "ACHIEVEMENT_UNLOCKED"
@@ -732,3 +739,15 @@ export * from "./souvenir.types";
 export type ExtractionFailure =
   | { reason: "unsupported-format"; format: string }
   | { reason: "file-not-found" };
+
+export type InstallFailure =
+  | { reason: "no-installer" }
+  | { reason: "installer-exit"; exitCode: number | null }
+  | {
+      reason: "insufficient-space";
+      requiredBytes: number;
+      freeBytes: number;
+    }
+  | { reason: "aborted" }
+  | { reason: "unsupported"; message?: string }
+  | { reason: "needs-interaction" };

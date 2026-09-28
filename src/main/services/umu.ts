@@ -334,6 +334,9 @@ export class Umu {
       useMangohud?: boolean;
       useGamemode?: boolean;
       onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
+      onChildSpawned?: (
+        child: import("node:child_process").ChildProcess
+      ) => void;
     }
   ): Promise<void> {
     const QUICK_EXIT_THRESHOLD_MS = 3000;
@@ -431,6 +434,7 @@ export class Umu {
       let quickExitTimer: NodeJS.Timeout | null = null;
 
       child.once("spawn", () => {
+        options?.onChildSpawned?.(child);
         quickExitTimer = setTimeout(() => {
           finalize(() => {
             child.unref();

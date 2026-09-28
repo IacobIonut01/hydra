@@ -7,6 +7,7 @@ interface BigPictureDownloadsStoreState {
   lastPacket: DownloadProgress | null;
   seedingStatuses: SeedingStatus[];
   extractionProgressByGameId: Record<string, number>;
+  installProgressByGameId: Record<string, number>;
   speedHistoryByGameId: Record<string, number[]>;
   peakSpeedByGameId: Record<string, number>;
   setLastPacket: (packet: DownloadProgress | null) => void;
@@ -17,6 +18,12 @@ interface BigPictureDownloadsStoreState {
     progress: number
   ) => void;
   clearExtractionProgress: (shop: string, objectId: string) => void;
+  setInstallProgress: (
+    shop: string,
+    objectId: string,
+    bytesWritten: number
+  ) => void;
+  clearInstallProgress: (shop: string, objectId: string) => void;
 }
 
 export const useBigPictureDownloadsStore =
@@ -24,6 +31,7 @@ export const useBigPictureDownloadsStore =
     lastPacket: null,
     seedingStatuses: [],
     extractionProgressByGameId: {},
+    installProgressByGameId: {},
     speedHistoryByGameId: {},
     peakSpeedByGameId: {},
     setLastPacket: (packet) => {
@@ -110,6 +118,36 @@ export const useBigPictureDownloadsStore =
         };
       });
     },
+    setInstallProgress: (shop, objectId, bytesWritten) => {
+      const gameId = `${shop}:${objectId}`;
+
+      set((state) => ({
+        ...state,
+        installProgressByGameId: {
+          ...state.installProgressByGameId,
+          [gameId]: bytesWritten,
+        },
+      }));
+    },
+    clearInstallProgress: (shop, objectId) => {
+      const gameId = `${shop}:${objectId}`;
+
+      set((state) => {
+        if (!(gameId in state.installProgressByGameId)) {
+          return state;
+        }
+
+        const nextInstallProgressByGameId = {
+          ...state.installProgressByGameId,
+        };
+        delete nextInstallProgressByGameId[gameId];
+
+        return {
+          ...state,
+          installProgressByGameId: nextInstallProgressByGameId,
+        };
+      });
+    },
   }));
 
 let downloadsStoreInitialized = false;
@@ -142,5 +180,19 @@ export function initializeBigPictureDownloadsStore() {
 
   globalThis.window.electron.onExtractionFailed((shop, objectId) => {
     store.getState().clearExtractionProgress(shop, objectId);
+  });
+
+  globalThis.window.electron.onInstallProgress(
+    (shop, objectId, bytesWritten) => {
+      store.getState().setInstallProgress(shop, objectId, bytesWritten);
+    }
+  );
+
+  globalThis.window.electron.onInstallComplete((shop, objectId) => {
+    store.getState().clearInstallProgress(shop, objectId);
+  });
+
+  globalThis.window.electron.onInstallFailed((shop, objectId) => {
+    store.getState().clearInstallProgress(shop, objectId);
   });
 }

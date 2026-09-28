@@ -868,8 +868,10 @@ export class DownloadManager {
       }
     } else {
       const gameFilesManager = new GameFilesManager(game.shop, game.objectId);
-      gameFilesManager.searchAndBindExecutable();
-      void gameFilesManager.autoLinkClassicsDiscs();
+      void gameFilesManager
+        .searchAndBindExecutable()
+        .then(() => gameFilesManager.autoLinkClassicsDiscs())
+        .then(() => gameFilesManager.maybeAutoInstallRepack());
     }
 
     await this.processNextQueuedDownload();

@@ -4,6 +4,7 @@ import {
   TextField,
   Button,
   Badge,
+  CheckboxField,
   ConfirmationModal,
 } from "@renderer/components";
 import { useTranslation } from "react-i18next";
@@ -16,7 +17,7 @@ import {
   TrashIcon,
 } from "@primer/octicons-react";
 import { AddDownloadSourceModal } from "./add-download-source-modal";
-import { useAppDispatch, useToast } from "@renderer/hooks";
+import { useAppDispatch, useAppSelector, useToast } from "@renderer/hooks";
 import { useFormat } from "@renderer/hooks/use-format";
 import { DownloadSourceStatus } from "@shared";
 import { settingsContext } from "@renderer/context";
@@ -42,7 +43,12 @@ export function SettingsDownloadSources() {
   const [isRemovingDownloadSource, setIsRemovingDownloadSource] =
     useState(false);
 
-  const { sourceUrl, clearSourceUrl } = useContext(settingsContext);
+  const { sourceUrl, clearSourceUrl, updateUserPreferences } =
+    useContext(settingsContext);
+
+  const userPreferences = useAppSelector(
+    (state) => state.userPreferences.value
+  );
 
   const { t } = useTranslation("settings");
   const { showSuccessToast } = useToast();
@@ -95,6 +101,25 @@ export function SettingsDownloadSources() {
 
     return () => clearInterval(intervalId);
   }, [downloadSources]);
+
+  const handleToggleAutoInstallSource = async (
+    downloadSourceId: string,
+    enabled: boolean
+  ) => {
+    const excluded = new Set(
+      userPreferences?.autoInstallExcludedSourceIds ?? []
+    );
+
+    if (enabled) {
+      excluded.delete(downloadSourceId);
+    } else {
+      excluded.add(downloadSourceId);
+    }
+
+    await updateUserPreferences({
+      autoInstallExcludedSourceIds: [...excluded],
+    });
+  };
 
   const handleRemoveSource = async (downloadSource: DownloadSource) => {
     setIsRemovingDownloadSource(true);
@@ -312,6 +337,25 @@ export function SettingsDownloadSources() {
                   </Button>
                 }
               />
+
+              {globalThis.electron.platform !== "darwin" && (
+                <CheckboxField
+                  label={t("auto_install_from_source")}
+                  checked={
+                    !userPreferences?.autoInstallExcludedSourceIds?.includes(
+                      downloadSource.id
+                    )
+                  }
+                  onChange={() =>
+                    handleToggleAutoInstallSource(
+                      downloadSource.id,
+                      userPreferences?.autoInstallExcludedSourceIds?.includes(
+                        downloadSource.id
+                      ) === true
+                    )
+                  }
+                />
+              )}
             </li>
           );
         })}
