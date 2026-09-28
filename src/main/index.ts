@@ -24,6 +24,8 @@ import {
 import resources from "@locales";
 import { TorrentService } from "./services/torrent-service";
 import { DownloadManager } from "./services/download/download-manager";
+import { StreamSidecar } from "./services/stream-sidecar";
+import { StreamingManager } from "./services/streaming";
 import { db, gamesSublevel, levelKeys } from "./level";
 import { GameShop, UserPreferences } from "@types";
 import { launchGame, openClassicsGame } from "./helpers";
@@ -210,6 +212,10 @@ const initializeApp = async () => {
   }
 
   WindowManager.createSystemTray(language || "en");
+
+  StreamingManager.start().catch((error) => {
+    logger.error("Failed to start streaming manager", error);
+  });
 
   if (deepLinkArg) {
     handleDeepLinkPath(deepLinkArg);
@@ -399,6 +405,7 @@ app.on("before-quit", async (e) => {
     } catch (error) {
       logger.error("Could not save active download before quitting", error);
     }
+    StreamSidecar.kill();
     const results = await Promise.allSettled([
       Lock.releaseLock(),
       TorrentService.shutdown(),
