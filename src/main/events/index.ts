@@ -31,6 +31,7 @@ import "./library/transfer-game-files";
 import "./emulators";
 import "./retroarch";
 import "./streaming";
+import "./controller";
 
 ipcMain.handle("ping", () => "pong");
 ipcMain.handle("getVersion", () => appVersion);

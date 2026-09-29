@@ -29,6 +29,8 @@ import {
   migrateCloudSaveAutomaticSyncDefaults,
   groupedSouvenirWorker,
   reconcileInstallsOnStartup,
+  seedInstallStubs,
+  ControllerService,
 } from "@main/services";
 import { migrateDownloadSources } from "./helpers/migrate-download-sources";
 import { getDirSize } from "./services/download/helpers";
@@ -105,6 +107,10 @@ export const loadState = async () => {
   Ludusavi.copyConfigFileToUserData();
   Ludusavi.copyBinaryToUserData();
 
+  void ControllerService.initialize().catch((error) =>
+    logger.warn("Failed to initialize controller service", error)
+  );
+
   if (process.platform === "linux") {
     DeckyPlugin.checkAndUpdateIfOutdated();
   }
@@ -133,6 +139,10 @@ export const loadState = async () => {
 
   await reconcileInstallsOnStartup().catch((error) =>
     logger.warn("Failed to reconcile installs on startup", error)
+  );
+
+  await seedInstallStubs().catch((error) =>
+    logger.warn("Failed to seed install stubs", error)
   );
   const normalizedDownloads = await downloadsSublevel
     .values()

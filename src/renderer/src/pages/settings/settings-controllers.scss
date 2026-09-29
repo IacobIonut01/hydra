@@ -1,0 +1,363 @@
+@use "../../scss/globals.scss";
+
+.settings-controllers {
+  &__hint {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.6;
+    line-height: 1.4;
+  }
+
+  &__empty {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.6;
+    line-height: 1.5;
+    max-width: 60ch;
+  }
+
+  &__device {
+    display: flex;
+    flex-direction: column;
+    gap: calc(#{globals.$spacing-unit} * 2);
+    padding: calc(#{globals.$spacing-unit} * 2);
+    border-radius: globals.$spacing-unit;
+    border: 1px solid globals.$border-color;
+    margin-bottom: globals.$spacing-unit;
+  }
+
+  &__device-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    h4 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+  }
+
+  &__device-meta {
+    font-size: 12px;
+    opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__button-row {
+    display: flex;
+    gap: globals.$spacing-unit;
+  }
+
+  &__color-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__swatches {
+    display: grid;
+    grid-template-columns: repeat(7, 24px);
+    gap: globals.$spacing-unit;
+  }
+
+  &__swatch {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    transition:
+      transform 0.15s ease-out,
+      box-shadow 0.15s ease-out;
+
+    &:hover {
+      transform: scale(1.1);
+    }
+
+    &:focus-visible {
+      outline: 2px solid globals.$brand-blue;
+      outline-offset: 2px;
+    }
+
+    &[data-selected="true"] {
+      box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.6),
+        0 0 0 2px globals.$brand-blue;
+    }
+  }
+
+  &__color-input {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+
+    &::-webkit-color-swatch-wrapper {
+      padding: 2px;
+    }
+
+    &::-webkit-color-swatch {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 4px;
+    }
+  }
+
+  &__mapping-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid globals.$border-color;
+
+    h4 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+  }
+
+  &__live-pressed {
+    font-size: 12px;
+    opacity: 0.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.controller-remap-diagram {
+  position: relative;
+  width: 100%;
+  max-width: 540px;
+  aspect-ratio: 60 / 34;
+  margin: calc(#{globals.$spacing-unit} * 2) auto 0;
+
+  &__pad {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: globals.$body-color;
+    opacity: 0.75;
+  }
+
+  &__body {
+    fill: rgba(255, 255, 255, 0.03);
+    stroke: globals.$border-color;
+    stroke-width: 2;
+  }
+
+  &__touchpad {
+    fill: none;
+    stroke: globals.$border-color;
+    stroke-width: 1.5;
+  }
+
+  &__lightbar {
+    fill: var(--pad-lightbar, globals.$border-color);
+    opacity: 0.9;
+    transition: fill 0.2s ease-in-out;
+  }
+
+  &__stick {
+    fill: none;
+    stroke: globals.$border-color;
+    stroke-width: 1.5;
+  }
+
+  &__stick-cap {
+    fill: globals.$border-color;
+    opacity: 0.5;
+  }
+
+  &__dish {
+    fill: none;
+    stroke: globals.$border-color;
+    stroke-width: 1.5;
+    opacity: 0.5;
+  }
+
+  &__seam {
+    fill: none;
+    stroke: globals.$border-color;
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+
+  &__speaker circle {
+    fill: globals.$border-color;
+  }
+
+  &__node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+  }
+
+  &__node[data-pressed] .controller-remap-diagram__glyph {
+    color: globals.$brand-blue;
+    border-color: globals.$brand-blue;
+    background-color: rgba(62, 98, 192, 0.18);
+  }
+
+  &__glyph {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid globals.$border-color;
+    background-color: globals.$dark-background-color;
+    color: globals.$muted-color;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease-in-out,
+      background-color 0.15s ease-in-out;
+
+    &:hover {
+      border-color: globals.$brand-blue;
+    }
+
+    &:focus-visible {
+      outline: 2px solid globals.$brand-blue;
+      outline-offset: 2px;
+    }
+
+    &[data-open] {
+      border-color: globals.$brand-blue;
+      background-color: rgba(62, 98, 192, 0.18);
+    }
+  }
+
+  &__glyph-icon {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    text {
+      fill: currentColor;
+      stroke: none;
+      font-size: 7.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+  }
+
+  &__remap-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: globals.$brand-blue;
+    box-shadow: 0 0 0 2px globals.$dark-background-color;
+  }
+
+  &__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    min-width: 150px;
+    max-height: 240px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    border-radius: globals.$spacing-unit;
+    border: 1px solid globals.$border-color;
+    background-color: globals.$dark-background-color;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+    &[data-flip-x] {
+      left: auto;
+      right: 50%;
+      transform: translateX(50%);
+    }
+
+    &[data-flip-y] {
+      top: auto;
+      bottom: calc(100% + 6px);
+    }
+  }
+
+  &__option {
+    display: block;
+    width: 100%;
+    padding: 6px calc(#{globals.$spacing-unit} * 2);
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: globals.$body-color;
+    font-size: globals.$small-font-size;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background-color: rgba(255, 255, 255, 0.08);
+      outline: none;
+    }
+
+    &[data-selected] {
+      color: globals.$brand-blue;
+      font-weight: 600;
+    }
+  }
+}
+
+.settings-controllers {
+  &__warning {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px;
+    border: 1px solid rgba(globals.$warning-color, 0.35);
+    border-radius: 8px;
+    background: rgba(globals.$warning-color, 0.08);
+  }
+
+  &__warning-icon {
+    flex-shrink: 0;
+    color: globals.$warning-color;
+    margin-top: 1px;
+  }
+
+  &__warning-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__warning-text {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  &__warning-fix {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.7;
+    line-height: 1.4;
+  }
+}

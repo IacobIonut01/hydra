@@ -152,6 +152,12 @@ export interface DownloadDirectoryPreference {
 }
 
 export interface UserPreferences {
+  controllerEnabled?: boolean;
+  controllerAssignments?: Record<string, string>;
+  /** deviceId -> whether a virtual X360 pad should mirror the remapped state. */
+  controllerVirtualOutput?: Record<string, boolean>;
+  /** deviceId -> whether the physical pad should be hidden from other apps. */
+  controllerHidden?: Record<string, boolean>;
   downloadsPath?: string | null;
   defaultWinePrefixPath?: string | null;
   downloadDirectories?: DownloadDirectoryPreference[];

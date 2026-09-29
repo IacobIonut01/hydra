@@ -76,6 +76,9 @@ import type {
   SteamConnectErrorCode,
   ExtractionFailure,
   InstallFailure,
+  ControllerDeviceInfo,
+  ControllerProfile,
+  ControllerState,
 } from "@types";
 import type { AuthPage, Downloader } from "@shared";
 import type { AxiosProgressEvent } from "axios";
@@ -1172,8 +1175,10 @@ contextBridge.exposeInMainWorld("electron", {
       gamesRunning: Pick<GameRunning, "id" | "sessionDurationInMillis">[]
     ) => void
   ) => {
-    const listener = (_event: Electron.IpcRendererEvent, gamesRunning) =>
-      cb(gamesRunning);
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      gamesRunning: Pick<GameRunning, "id" | "sessionDurationInMillis">[]
+    ) => cb(gamesRunning);
     ipcRenderer.on("on-games-running", listener);
     return () => ipcRenderer.removeListener("on-games-running", listener);
   },
@@ -2056,6 +2061,111 @@ contextBridge.exposeInMainWorld("electron", {
   getAvailableDrives: () => ipcRenderer.invoke("getAvailableDrives"),
   transferGameFiles: (shop: GameShop, objectId: string, destParent: string) =>
     ipcRenderer.invoke("transferGameFiles", shop, objectId, destParent),
+
+  /* Controllers */
+  getControllers: () => ipcRenderer.invoke("getControllers"),
+  getControllerProfiles: () => ipcRenderer.invoke("getControllerProfiles"),
+  saveControllerProfile: (
+    profile: Omit<ControllerProfile, "id" | "builtin"> & { id?: string }
+  ) => ipcRenderer.invoke("saveControllerProfile", profile),
+  deleteControllerProfile: (profileId: string) =>
+    ipcRenderer.invoke("deleteControllerProfile", profileId),
+  assignControllerProfile: (deviceId: string, profileId: string | null) =>
+    ipcRenderer.invoke("assignControllerProfile", deviceId, profileId),
+  setControllerLightbar: (
+    deviceId: string,
+    r: number,
+    g: number,
+    b: number,
+    flashOn?: number,
+    flashOff?: number
+  ) =>
+    ipcRenderer.invoke(
+      "setControllerLightbar",
+      deviceId,
+      r,
+      g,
+      b,
+      flashOn,
+      flashOff
+    ),
+  previewControllerRumble: (
+    deviceId: string,
+    light: number,
+    heavy: number,
+    durationMs?: number
+  ) =>
+    ipcRenderer.invoke(
+      "previewControllerRumble",
+      deviceId,
+      light,
+      heavy,
+      durationMs
+    ),
+  setControllerPlayerLeds: (deviceId: string, count: number) =>
+    ipcRenderer.invoke("setControllerPlayerLeds", deviceId, count),
+  setControllerMicLed: (deviceId: string, mode: number) =>
+    ipcRenderer.invoke("setControllerMicLed", deviceId, mode),
+  setControllerTriggerEffect: (
+    deviceId: string,
+    side: "left" | "right",
+    mode: number,
+    params: number[]
+  ) =>
+    ipcRenderer.invoke(
+      "setControllerTriggerEffect",
+      deviceId,
+      side,
+      mode,
+      params
+    ),
+  identifyController: (deviceId: string) =>
+    ipcRenderer.invoke("identifyController", deviceId),
+  getVirtualOutputSupport: () => ipcRenderer.invoke("getVirtualOutputSupport"),
+  setControllerVirtualOutput: (deviceId: string, enabled: boolean) =>
+    ipcRenderer.invoke("setControllerVirtualOutput", deviceId, enabled),
+  getHidingSupport: () => ipcRenderer.invoke("getHidingSupport"),
+  setControllerHidden: (deviceId: string, enabled: boolean) =>
+    ipcRenderer.invoke("setControllerHidden", deviceId, enabled),
+  restartControllerService: () =>
+    ipcRenderer.invoke("restartControllerService"),
+  setControllerEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke("setControllerEnabled", enabled),
+  beginControllerCapture: (deviceId: string) =>
+    ipcRenderer.invoke("beginControllerCapture", deviceId),
+  endControllerCapture: (deviceId: string) =>
+    ipcRenderer.invoke("endControllerCapture", deviceId),
+  onControllerDevicesChanged: (
+    cb: (devices: ControllerDeviceInfo[]) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      devices: ControllerDeviceInfo[]
+    ) => cb(devices);
+    ipcRenderer.on("on-controller-devices-changed", listener);
+    return () =>
+      ipcRenderer.removeListener("on-controller-devices-changed", listener);
+  },
+  onControllerState: (
+    cb: (payload: { deviceId: string; state: ControllerState }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { deviceId: string; state: ControllerState }
+    ) => cb(payload);
+    ipcRenderer.on("on-controller-state", listener);
+    return () => ipcRenderer.removeListener("on-controller-state", listener);
+  },
+  onControllerCapture: (
+    cb: (payload: { deviceId: string; state: ControllerState }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { deviceId: string; state: ControllerState }
+    ) => cb(payload);
+    ipcRenderer.on("on-controller-capture", listener);
+    return () => ipcRenderer.removeListener("on-controller-capture", listener);
+  },
 });
 
 const reportNetworkStatus = (online: boolean, switched = false) => {

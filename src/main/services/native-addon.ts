@@ -26,6 +26,7 @@ import type {
 
 import type { AudioDeviceDefaults } from "./audio-device-manager-utils";
 import { logger } from "./logger";
+import { controllerStub, controllerStubEnabled } from "./controller/stub";
 
 type NativeProcessProfileImageResponse = {
   imagePath?: string;
@@ -56,6 +57,44 @@ type NativeActiveWindowResponse = {
   window_id?: string;
   processId?: number;
   process_id?: number;
+};
+
+export type NativeControllerDeviceInfo = {
+  id: string;
+  path: string;
+  vid: number;
+  pid: number;
+  model: string;
+  name: string;
+  connection: string;
+  serial: string | null;
+  interface_number: number;
+  active: boolean;
+  has_player_leds: boolean;
+  has_mic_led: boolean;
+  has_trigger_effects: boolean;
+};
+
+export type NativeControllerState = {
+  pressed: string[];
+  left_stick: { x: number; y: number };
+  right_stick: { x: number; y: number };
+  l2: number;
+  r2: number;
+  gyro: { x: number; y: number; z: number };
+  accel: { x: number; y: number; z: number };
+  touch: { id: number; active: boolean; x: number; y: number }[];
+  battery: number;
+  charging: boolean;
+  frame: number;
+};
+
+export type NativeControllerEvent = {
+  event_type: string;
+  device_id: string | null;
+  devices: NativeControllerDeviceInfo[] | null;
+  state: NativeControllerState | null;
+  message: string | null;
 };
 
 type HydraNativeModule = {
@@ -133,6 +172,36 @@ type HydraNativeModule = {
     snapshotId: string,
     tempRoot: string
   ) => Promise<void>;
+  controllerList?: () => NativeControllerDeviceInfo[];
+  controllerStart?: (id: string) => boolean;
+  controllerStop?: (id: string) => boolean;
+  controllerSetLightbar?: (
+    id: string,
+    r: number,
+    g: number,
+    b: number,
+    flashOn: number,
+    flashOff: number
+  ) => boolean;
+  controllerSetRumble?: (id: string, light: number, heavy: number) => boolean;
+  controllerSetMicLed?: (id: string, mode: number) => boolean;
+  controllerSetPlayerLeds?: (id: string, mask: number) => boolean;
+  controllerSetTriggerEffect?: (
+    id: string,
+    left: boolean,
+    mode: number,
+    params: number[]
+  ) => boolean;
+  controllerIdentify?: (id: string) => boolean;
+  controllerSetProfile?: (id: string, profileJson: string) => boolean;
+  controllerReadRaw?: (id: string) => NativeControllerState | null;
+  controllerSetVirtualOutput?: (id: string, enabled: boolean) => boolean;
+  controllerVirtualOutputSupport?: () => string;
+  controllerSetHidden?: (id: string, enabled: boolean) => boolean;
+  controllerHidingSupport?: () => string;
+  controllerOnEvent?: (
+    callback: (event: NativeControllerEvent) => void
+  ) => void;
 };
 
 export type SystemProcessMap = {
@@ -613,5 +682,211 @@ export class NativeAddon {
     tempRoot: string
   ) {
     return this.load().cleanupRestoreTempSnapshot(snapshotId, tempRoot);
+  }
+
+  private static useControllerStub() {
+    return controllerStubEnabled;
+  }
+
+  public static controllerList(): NativeControllerDeviceInfo[] {
+    if (this.useControllerStub()) return controllerStub.list();
+    try {
+      return this.load().controllerList?.() ?? [];
+    } catch (error) {
+      logger.error("Failed to list controllers via native addon", error);
+      return [];
+    }
+  }
+
+  public static controllerStart(id: string): boolean {
+    if (this.useControllerStub()) return controllerStub.start(id);
+    try {
+      return this.load().controllerStart?.(id) ?? false;
+    } catch (error) {
+      logger.error("Failed to start controller session", error);
+      return false;
+    }
+  }
+
+  public static controllerStop(id: string): boolean {
+    if (this.useControllerStub()) return controllerStub.stop(id);
+    try {
+      return this.load().controllerStop?.(id) ?? false;
+    } catch (error) {
+      logger.error("Failed to stop controller session", error);
+      return false;
+    }
+  }
+
+  public static controllerSetLightbar(
+    id: string,
+    r: number,
+    g: number,
+    b: number,
+    flashOn = 0,
+    flashOff = 0
+  ): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setLightbar(id, r, g, b, flashOn, flashOff);
+    }
+    try {
+      return (
+        this.load().controllerSetLightbar?.(id, r, g, b, flashOn, flashOff) ??
+        false
+      );
+    } catch (error) {
+      logger.error("Failed to set controller lightbar", error);
+      return false;
+    }
+  }
+
+  public static controllerSetRumble(
+    id: string,
+    light: number,
+    heavy: number
+  ): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setRumble(id, light, heavy);
+    }
+    try {
+      return this.load().controllerSetRumble?.(id, light, heavy) ?? false;
+    } catch (error) {
+      logger.error("Failed to set controller rumble", error);
+      return false;
+    }
+  }
+
+  public static controllerSetMicLed(id: string, mode: number): boolean {
+    if (this.useControllerStub()) return controllerStub.setMicLed(id, mode);
+    try {
+      return this.load().controllerSetMicLed?.(id, mode) ?? false;
+    } catch (error) {
+      logger.error("Failed to set controller mic LED", error);
+      return false;
+    }
+  }
+
+  public static controllerSetPlayerLeds(id: string, mask: number): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setPlayerLeds(id, mask);
+    }
+    try {
+      return this.load().controllerSetPlayerLeds?.(id, mask) ?? false;
+    } catch (error) {
+      logger.error("Failed to set controller player LEDs", error);
+      return false;
+    }
+  }
+
+  public static controllerSetTriggerEffect(
+    id: string,
+    left: boolean,
+    mode: number,
+    params: number[]
+  ): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setTriggerEffect(id, left, mode, params);
+    }
+    try {
+      return (
+        this.load().controllerSetTriggerEffect?.(id, left, mode, params) ??
+        false
+      );
+    } catch (error) {
+      logger.error("Failed to set controller trigger effect", error);
+      return false;
+    }
+  }
+
+  public static controllerIdentify(id: string): boolean {
+    if (this.useControllerStub()) return controllerStub.identify(id);
+    try {
+      return this.load().controllerIdentify?.(id) ?? false;
+    } catch (error) {
+      logger.error("Failed to identify controller", error);
+      return false;
+    }
+  }
+
+  public static controllerSetProfile(id: string, profileJson: string): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setProfile(id, profileJson);
+    }
+    try {
+      return this.load().controllerSetProfile?.(id, profileJson) ?? false;
+    } catch (error) {
+      logger.error("Failed to set controller profile", error);
+      return false;
+    }
+  }
+
+  public static controllerReadRaw(id: string): NativeControllerState | null {
+    if (this.useControllerStub()) return controllerStub.readRaw(id);
+    try {
+      return this.load().controllerReadRaw?.(id) ?? null;
+    } catch (error) {
+      logger.error("Failed to read raw controller state", error);
+      return null;
+    }
+  }
+
+  public static controllerSetVirtualOutput(
+    id: string,
+    enabled: boolean
+  ): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setVirtualOutput(id, enabled);
+    }
+    try {
+      return this.load().controllerSetVirtualOutput?.(id, enabled) ?? false;
+    } catch (error) {
+      logger.error("Failed to set controller virtual output", error);
+      return false;
+    }
+  }
+
+  public static controllerVirtualOutputSupport(): string {
+    if (this.useControllerStub()) return controllerStub.virtualOutputSupport();
+    try {
+      return this.load().controllerVirtualOutputSupport?.() ?? "unavailable";
+    } catch (error) {
+      logger.error("Failed to probe virtual output support", error);
+      return "unavailable";
+    }
+  }
+
+  public static controllerSetHidden(id: string, enabled: boolean): boolean {
+    if (this.useControllerStub()) {
+      return controllerStub.setHidden(id, enabled);
+    }
+    try {
+      return this.load().controllerSetHidden?.(id, enabled) ?? false;
+    } catch (error) {
+      logger.error("Failed to set controller hidden state", error);
+      return false;
+    }
+  }
+
+  public static controllerHidingSupport(): string {
+    if (this.useControllerStub()) return controllerStub.hidingSupport();
+    try {
+      return this.load().controllerHidingSupport?.() ?? "unavailable";
+    } catch (error) {
+      logger.error("Failed to probe hiding support", error);
+      return "unavailable";
+    }
+  }
+
+  public static controllerOnEvent(
+    callback: (event: NativeControllerEvent) => void
+  ): boolean {
+    if (this.useControllerStub()) return controllerStub.onEvent(callback);
+    try {
+      this.load().controllerOnEvent?.(callback);
+      return true;
+    } catch (error) {
+      logger.error("Failed to subscribe to controller events", error);
+      return false;
+    }
   }
 }

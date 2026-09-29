@@ -11,3 +11,4 @@ export {
   scheduleRescanPoll,
 } from "./installer-runner";
 export { startInstallProgressMonitor } from "./install-progress-monitor";
+export { seedInstallStubs } from "./install-stub";

@@ -41,3 +41,4 @@ export * from "./game-artwork-cloud";
 export * as emulators from "./emulators";
 export * as retroarch from "./retroarch";
 export * from "./install";
+export * from "./controller";

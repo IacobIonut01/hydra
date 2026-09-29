@@ -104,6 +104,11 @@ import type {
   SteamConnectErrorCode,
   ExtractionFailure,
   InstallFailure,
+  ControllerDeviceInfo,
+  ControllerProfile,
+  ControllerState,
+  HidingSupport,
+  VirtualOutputSupport,
 } from "@types";
 import type { AxiosProgressEvent } from "axios";
 
@@ -1378,6 +1383,67 @@ declare global {
 
     // Cancel for game transfers
     cancelGameTransfer: (shop: GameShop, objectId: string) => Promise<void>;
+
+    /* Controllers */
+    getControllers: () => Promise<ControllerDeviceInfo[]>;
+    getControllerProfiles: () => Promise<ControllerProfile[]>;
+    saveControllerProfile: (
+      profile: Omit<ControllerProfile, "id" | "builtin"> & { id?: string }
+    ) => Promise<ControllerProfile>;
+    deleteControllerProfile: (profileId: string) => Promise<boolean>;
+    assignControllerProfile: (
+      deviceId: string,
+      profileId: string | null
+    ) => Promise<boolean>;
+    setControllerLightbar: (
+      deviceId: string,
+      r: number,
+      g: number,
+      b: number,
+      flashOn?: number,
+      flashOff?: number
+    ) => Promise<boolean>;
+    previewControllerRumble: (
+      deviceId: string,
+      light: number,
+      heavy: number,
+      durationMs?: number
+    ) => Promise<boolean>;
+    setControllerPlayerLeds: (
+      deviceId: string,
+      count: number
+    ) => Promise<boolean>;
+    setControllerMicLed: (deviceId: string, mode: number) => Promise<boolean>;
+    setControllerTriggerEffect: (
+      deviceId: string,
+      side: "left" | "right",
+      mode: number,
+      params: number[]
+    ) => Promise<boolean>;
+    identifyController: (deviceId: string) => Promise<boolean>;
+    getVirtualOutputSupport: () => Promise<VirtualOutputSupport>;
+    setControllerVirtualOutput: (
+      deviceId: string,
+      enabled: boolean
+    ) => Promise<boolean>;
+    getHidingSupport: () => Promise<HidingSupport>;
+    setControllerHidden: (
+      deviceId: string,
+      enabled: boolean
+    ) => Promise<boolean>;
+    restartControllerService: () => Promise<void>;
+    setControllerEnabled: (enabled: boolean) => Promise<void>;
+    beginControllerCapture: (deviceId: string) => Promise<boolean>;
+    endControllerCapture: (deviceId: string) => Promise<void>;
+    onControllerDevicesChanged: (
+      cb: (devices: ControllerDeviceInfo[]) => void
+    ) => () => void;
+    onControllerState: (
+      cb: (payload: { deviceId: string; state: ControllerState }) => void
+    ) => () => void;
+    onControllerCapture: (
+      cb: (payload: { deviceId: string; state: ControllerState }) => void
+    ) => () => void;
 
     /* Event listeners for transfer progress */
     on: (channel: string, listener: (...args) => void) => void;

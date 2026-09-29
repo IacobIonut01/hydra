@@ -268,8 +268,8 @@ export const publishFriendStartedPlayingGameNotification = async (
 };
 
 export const publishCombinedNewAchievementNotification = async (
-  achievementCount,
-  gameCount
+  achievementCount: number,
+  gameCount: number
 ) => {
   const options: NotificationOptions = {
     title: t("achievement_unlocked", { ns: "achievement" }),

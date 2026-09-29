@@ -181,6 +181,34 @@ export const BIG_PICTURE_ITEM_FOCUS_IDS = {
 export const COMPATIBILITY_PROTON_OPTION_AUTO_FOCUS_ID =
   "compatibility-proton-option-auto";
 
+export const CONTROLLERS_SECTION_REGION_ID = "controllers-section-region";
+
+export const CONTROLLERS_ITEM_FOCUS_IDS = {
+  enabled: "controllers-enabled",
+  restart: "controllers-restart",
+  emptyHelp: "controllers-empty-help",
+} as const;
+
+function sanitizeControllerFocusToken(value: string) {
+  return value.replaceAll(/[^a-z0-9_-]/gi, "-").toLowerCase();
+}
+
+export function getControllerDeviceRegionId(deviceId: string) {
+  return `controller-device-${sanitizeControllerFocusToken(deviceId)}-region`;
+}
+
+export function getControllerItemFocusId(deviceId: string, item: string) {
+  return `controller-${sanitizeControllerFocusToken(deviceId)}-${item}`;
+}
+
+export function getControllerSwatchFocusId(deviceId: string, index: number) {
+  return `controller-${sanitizeControllerFocusToken(deviceId)}-swatch-${index}`;
+}
+
+export function getControllerRemapFocusId(deviceId: string, controlId: string) {
+  return `controller-${sanitizeControllerFocusToken(deviceId)}-remap-${controlId}`;
+}
+
 export const SETTINGS_HEADER_RETURN_TARGET: FocusOverrideTarget = {
   type: "region",
   regionId: BIG_PICTURE_HEADER_REGION_ID,

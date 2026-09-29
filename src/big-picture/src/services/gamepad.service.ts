@@ -99,6 +99,9 @@ export class GamepadService {
   private inputEnabled = true;
 
   private readonly gamepads: GamepadRegistry = new Map();
+  private readonly nativeGamepads: GamepadRegistry = new Map();
+  private readonly suppressedHardwareKeys = new Set<string>();
+  private suppressedNamePatterns: RegExp[] = [];
   private readonly gamepadStates = new Map<number, GamepadRawState>();
   private readonly buttonPressCallbacks: ButtonPressCallbacks = new Map();
   private readonly stickMoveCallbacks: StickMoveCallbacks = new Map();
@@ -148,6 +151,13 @@ export class GamepadService {
       "gamepaddisconnected",
       this.handleGamepadDisconnection
     );
+
+    // Lazy import avoids a static cycle (the source holds a service reference).
+    void import("./native-gamepad-source")
+      .then(({ NativeGamepadSource }) =>
+        NativeGamepadSource.getInstance().attach()
+      )
+      .catch(() => undefined);
   }
 
   private createInitialStickState(): GamepadStickState {
@@ -244,12 +254,96 @@ export class GamepadService {
       if (!gamepad) continue;
 
       this.gamepads.set(gamepad.index, gamepad);
+
+      // A native session owns this physical pad; its remapped synthetic pad
+      // is polled below instead.
+      if (this.isGamepadSuppressed(gamepad)) continue;
+
       this.updateGamepadState(gamepad.index, gamepad);
+    }
+
+    for (const [index, nativeGamepad] of this.nativeGamepads) {
+      this.updateGamepadState(index, nativeGamepad);
     }
 
     this.animationFrameId = globalThis.requestAnimationFrame(() =>
       this.pollGamepads()
     );
+  }
+
+  private extractHardwareKey(gamepadId: string): string | null {
+    const match =
+      /Vendor:\s*([0-9a-f]{4})\s+Product:\s*([0-9a-f]{4})/i.exec(gamepadId) ??
+      /\(([0-9a-f]{4})[:/]([0-9a-f]{4})\)/.exec(gamepadId);
+
+    if (!match) return null;
+
+    return `${match[1].toLowerCase()}:${match[2].toLowerCase()}`;
+  }
+
+  private isGamepadSuppressed(gamepad: globalThis.Gamepad): boolean {
+    if (
+      this.suppressedHardwareKeys.size === 0 &&
+      this.suppressedNamePatterns.length === 0
+    ) {
+      return false;
+    }
+
+    const hardwareKey = this.extractHardwareKey(gamepad.id);
+    if (hardwareKey && this.suppressedHardwareKeys.has(hardwareKey)) {
+      return true;
+    }
+
+    return this.suppressedNamePatterns.some((pattern) =>
+      pattern.test(gamepad.id)
+    );
+  }
+
+  public registerNativeGamepad(
+    index: number,
+    gamepad: globalThis.Gamepad
+  ): void {
+    this.nativeGamepads.set(index, gamepad);
+    this.gamepads.set(index, gamepad);
+
+    if (!this.isPolling) {
+      this.startPolling();
+    }
+
+    this.notifyStateChange();
+  }
+
+  public unregisterNativeGamepad(index: number): void {
+    this.nativeGamepads.delete(index);
+    this.gamepads.delete(index);
+    this.gamepadStates.delete(index);
+
+    if (this.activeGamepadIndex === index) {
+      this.activeGamepadIndex = null;
+    }
+
+    this.clearTimersForGamepad(index);
+    this.stickStatesByGamepad.delete(index);
+    this.recentAcceptedInputs = this.recentAcceptedInputs.filter(
+      (input) => input.gamepadIndex !== index
+    );
+
+    if (this.gamepads.size === 0) {
+      this.stopPolling();
+    }
+
+    this.notifyStateChange();
+  }
+
+  public setSuppressedHardwareKeys(keys: Iterable<string>): void {
+    this.suppressedHardwareKeys.clear();
+    for (const key of keys) {
+      this.suppressedHardwareKeys.add(key);
+    }
+  }
+
+  public setSuppressedNamePatterns(patterns: RegExp[]): void {
+    this.suppressedNamePatterns = patterns;
   }
 
   private startPolling() {
@@ -1360,13 +1454,8 @@ export class GamepadService {
     const id =
       this.gamepads.get(gamepadIndex)?.id ??
       this.gamepadStates.get(gamepadIndex)?.name;
-    const match = /Vendor:\s*([0-9a-f]{4})\s+Product:\s*([0-9a-f]{4})/i.exec(
-      id ?? ""
-    );
 
-    if (!match) return null;
-
-    return `${match[1].toLowerCase()}:${match[2].toLowerCase()}`;
+    return this.extractHardwareKey(id ?? "");
   }
 
   private getInputSignatureKey(input: GamepadInputDescriptor): string {

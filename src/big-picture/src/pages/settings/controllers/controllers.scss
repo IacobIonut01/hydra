@@ -1,0 +1,290 @@
+.controllers-section {
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing-unit) * 2);
+  }
+
+  &__hint {
+    margin: 0;
+    padding-inline-start: calc(var(--spacing-unit) * 2);
+    color: var(--text-secondary);
+    font-family: var(--font-space-grotesk), sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+}
+
+.controller-device-card {
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing-unit) * 2);
+  }
+
+  &__button-row {
+    display: flex;
+    gap: calc(var(--spacing-unit) * 2);
+    width: 100%;
+
+    .button {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+  }
+
+  &__button-spacer {
+    flex: 1 1 0;
+  }
+
+  &__swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: calc(var(--spacing-unit) * 1.5);
+    padding: calc(var(--spacing-unit) * 2);
+    border-radius: calc(var(--spacing-unit) * 2);
+    background-color: var(--surface);
+    border: 1px solid var(--secondary-border);
+  }
+
+  &__swatch {
+    aspect-ratio: 1;
+    width: 100%;
+    min-width: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+    background: var(--swatch-color);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
+    transition:
+      transform 0.15s ease-out,
+      box-shadow 0.15s ease-out;
+
+    &:hover {
+      transform: scale(1.08);
+    }
+
+    &:focus-visible,
+    &[data-focus-visible="true"] {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      transform: scale(1.12);
+    }
+
+    &[data-selected="true"] {
+      box-shadow:
+        inset 0 0 0 2px var(--background),
+        0 0 0 2px var(--primary);
+    }
+  }
+
+  &__mapping-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: calc(var(--spacing-unit) * 2);
+    margin-top: calc(var(--spacing-unit) * 2);
+    padding-top: calc(var(--spacing-unit) * 3);
+    border-top: 1px solid var(--secondary-border);
+  }
+
+  &__mapping-title {
+    margin: 0;
+    color: var(--text);
+    font-family: var(--font-space-grotesk), sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  &__mapping-live {
+    margin: 0;
+    color: var(--text-secondary);
+    font-family: var(--font-space-grotesk), sans-serif;
+    font-size: 12px;
+    text-align: right;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.controller-diagram {
+  display: block;
+
+  &__frame {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 60 / 34;
+    margin: calc(var(--spacing-unit) * 2) auto 0;
+  }
+
+  &__pad {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: var(--text-secondary);
+  }
+
+  &__body {
+    fill: color-mix(in srgb, var(--surface) 55%, transparent);
+    stroke: var(--secondary-border);
+    stroke-width: 2;
+  }
+
+  &__touchpad {
+    fill: none;
+    stroke: var(--secondary-border);
+    stroke-width: 1.5;
+  }
+
+  &__lightbar {
+    fill: var(--pad-lightbar, var(--secondary-border));
+    opacity: 0.9;
+    transition: fill 0.2s ease-in-out;
+  }
+
+  &__stick {
+    fill: none;
+    stroke: var(--secondary-border);
+    stroke-width: 1.5;
+  }
+
+  &__stick-cap {
+    fill: var(--secondary-border);
+    opacity: 0.35;
+  }
+
+  &__dish {
+    fill: none;
+    stroke: var(--secondary-border);
+    stroke-width: 1.5;
+    opacity: 0.5;
+  }
+
+  &__seam {
+    fill: none;
+    stroke: var(--secondary-border);
+    stroke-width: 1;
+    opacity: 0.6;
+  }
+
+  &__speaker circle {
+    fill: var(--secondary-border);
+  }
+
+  &__node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+
+    &[data-pressed] .dropdown-select__trigger {
+      color: var(--primary);
+      border-color: var(--primary);
+      background-color: color-mix(
+        in srgb,
+        var(--primary) 14%,
+        var(--background)
+      );
+    }
+  }
+
+  &__select {
+    .dropdown-select__trigger-anchor,
+    .dropdown-select__trigger {
+      width: 40px;
+      height: 40px;
+    }
+
+    .dropdown-select__trigger {
+      padding: 0;
+      border-radius: 50%;
+      justify-content: center;
+      gap: 0;
+      background-color: color-mix(in srgb, var(--background) 82%, transparent);
+      box-shadow: 0 0 0 1px
+        color-mix(in srgb, var(--background) 70%, transparent);
+    }
+  }
+
+  &__glyph {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  &__glyph-icon {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    text {
+      fill: currentColor;
+      stroke: none;
+      font-family: var(--font-space-grotesk), sans-serif;
+      font-size: 7.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+  }
+
+  &__remap-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    box-shadow: 0 0 0 2px var(--background);
+  }
+}
+
+.controller-device-card {
+  &__exclusive-warning {
+    display: flex;
+    gap: calc(var(--spacing-unit) * 1.5);
+    align-items: flex-start;
+    padding: calc(var(--spacing-unit) * 1.5) calc(var(--spacing-unit) * 2);
+    border: 1px solid rgba(255, 193, 7, 0.35);
+    border-radius: calc(var(--spacing-unit) * 1.5);
+    background: rgba(255, 193, 7, 0.08);
+  }
+
+  &__exclusive-warning-icon {
+    flex-shrink: 0;
+    color: #ffc107;
+    margin-top: 1px;
+  }
+
+  &__exclusive-warning-body {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing-unit) * 0.5);
+  }
+
+  &__exclusive-warning-text {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--font-space-grotesk), sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  &__exclusive-warning-fix {
+    margin: 0;
+    color: var(--text-secondary);
+    font-family: var(--font-space-grotesk), sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}

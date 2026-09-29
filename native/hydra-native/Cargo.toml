@@ -12,6 +12,7 @@ blake3 = "=1.8.5"
 filetime = "0.2"
 globetter = "=0.2.0"
 globset = "=0.4.15"
+hidapi = { version = "=2.6.7", default-features = false, features = ["linux-native"] }
 image = { version = "0.25.8", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 indexmap = { version = "2.14", features = ["serde"] }
 mime_guess = "2.0.5"
@@ -33,7 +34,8 @@ walkdir = "=2.5.0"
 
 [target.'cfg(windows)'.dependencies]
 known-folders = "=1.2.0"
-windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+libloading = "=0.9.0"
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO"] }
 windows = { version = "0.61.3", features = [
   "Win32_Foundation",
   "Win32_Media_Audio",
@@ -45,6 +47,8 @@ windows = { version = "0.61.3", features = [
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13.2", default-features = false }
+evdev = "=0.13.2"
+libc = "=0.2.189"
 
 [dev-dependencies]
 tempfile = "3.27"

@@ -28,6 +28,7 @@ import { SettingsContextIntegrations } from "./settings-context-integrations";
 import { SettingsContextCompatibility } from "./settings-context-compatibility";
 import { SettingsContextConsoleStreaming } from "./settings-context-console-streaming";
 import { SettingsContextBigPicture } from "./settings-context-big-picture";
+import { SettingsContextControllers } from "./settings-context-controllers";
 import { SettingsContextEmulation } from "./emulation/settings-context-emulation";
 
 export default function Settings() {
@@ -92,6 +93,11 @@ export default function Settings() {
         icon: <VideoIcon size={16} />,
       },
       {
+        id: "controllers" as const,
+        label: t("controllers"),
+        icon: <Gamepad2 size={16} />,
+      },
+      {
         id: "emulation" as const,
         label: t("emulation"),
         icon: <Gamepad2 size={16} />,
@@ -145,6 +151,10 @@ export default function Settings() {
 
             if (selectedCategoryId === "big_picture") {
               return <SettingsContextBigPicture />;
+            }
+
+            if (selectedCategoryId === "controllers") {
+              return <SettingsContextControllers />;
             }
 
             if (selectedCategoryId === "emulation") {
