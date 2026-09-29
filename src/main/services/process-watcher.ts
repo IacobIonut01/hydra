@@ -144,6 +144,64 @@ export const getGamesRunning = () => {
 };
 
 const TICKS_TO_UPDATE_API = (3 * 60 * 1000) / INTERVALS.processWatcher; // 3 minutes
+
+// Watching the spawned pid directly gets the game-close signal out a lot
+// sooner than the next watcher tick; the probe only schedules a scan — the
+// real matcher still decides whether the game actually closed, so wrapper
+// processes that exit early can't trip a false close.
+const LAUNCHED_PID_WATCH_MS = 750;
+const launchedPidTimers = new Map<string, NodeJS.Timeout>();
+
+let processScanInFlight = false;
+let processScanQueued = false;
+
+export const runProcessScan = async (): Promise<void> => {
+  if (processScanInFlight) {
+    processScanQueued = true;
+    return;
+  }
+
+  processScanInFlight = true;
+  try {
+    await watchProcesses();
+  } finally {
+    processScanInFlight = false;
+    if (processScanQueued) {
+      processScanQueued = false;
+      void runProcessScan();
+    }
+  }
+};
+
+const disarmLaunchedPidWatch = (gameKey: string) => {
+  const timer = launchedPidTimers.get(gameKey);
+  if (!timer) return;
+
+  clearInterval(timer);
+  launchedPidTimers.delete(gameKey);
+};
+
+const armLaunchedPidWatch = (gameKey: string) => {
+  const pid = launchedGamePids.get(gameKey);
+  if (!pid || launchedPidTimers.has(gameKey)) return;
+
+  launchedPidTimers.set(
+    gameKey,
+    setInterval(() => {
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") return;
+
+        // Drop the dead pid so a later tick can't rearm this probe — the
+        // matcher can no longer hit on it anyway.
+        launchedGamePids.delete(gameKey);
+        disarmLaunchedPidWatch(gameKey);
+        void runProcessScan();
+      }
+    }, LAUNCHED_PID_WATCH_MS)
+  );
+};
 let currentTick = 1;
 
 const platform = process.platform;
@@ -388,6 +446,7 @@ export const watchProcesses = async () => {
     }
 
     if (matchedPath) {
+      armLaunchedPidWatch(gameKey);
       if (gamesPlaytime.has(gameKey)) {
         onTickGame(game);
       } else {
@@ -634,6 +693,7 @@ const onCloseGame = (game: Game) => {
   const gamePlaytime = gamesPlaytime.get(gameKey)!;
   deleteGamePlaytime(gameKey);
   launchedGamePids.delete(gameKey);
+  disarmLaunchedPidWatch(gameKey);
   clearGameLaunch(gameKey);
   stopLinuxGameCaptureSession(gameKey);
   PowerSaveBlockerManager.markGameClosed(gameKey);

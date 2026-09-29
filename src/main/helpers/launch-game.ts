@@ -623,6 +623,7 @@ const launchResolvedGame = async (
       };
     }
 
+    if (outcome.pid !== null) launchedGamePids.set(gameKey, outcome.pid);
     return { status: "launched", pid: outcome.pid };
   }
 

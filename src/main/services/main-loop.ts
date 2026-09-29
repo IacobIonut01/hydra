@@ -1,6 +1,6 @@
 import { sleep } from "@main/helpers";
 import { DownloadManager } from "./download";
-import { gamesPlaytime, watchProcesses } from "./process-watcher";
+import { gamesPlaytime, runProcessScan } from "./process-watcher";
 import { AchievementWatcherManager } from "./achievements/achievement-watcher-manager";
 import { UpdateManager } from "./update-manager";
 import { INTERVALS } from "@main/constants";
@@ -26,7 +26,7 @@ const wrapInLoop = (fn: () => unknown, interval: number) => {
 };
 
 export const startMainLoop = async () => {
-  wrapInLoop(() => watchProcesses(), INTERVALS.processWatcher);
+  wrapInLoop(() => runProcessScan(), INTERVALS.processWatcher);
   wrapInLoop(() => DownloadManager.watchDownloads(), INTERVALS.downloadWatcher);
   wrapInLoop(
     () => AchievementWatcherManager.watchAchievements(),
