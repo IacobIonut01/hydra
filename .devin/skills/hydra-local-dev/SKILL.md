@@ -33,6 +33,7 @@ downloads the ludusavi binary into `ludusavi/`.
    vars and `RENDERER_VITE_SENTRY_DSN` empty for local dev. The canonical
    production/staging table lives in the hydra-docs repo's
    `getting-started.md`; re-check it if an endpoint rotates.
+
 3. On macOS 27 (Darwin 27) / Xcode 27, add this to `~/.cargo/config.toml`
    first or the native addon will build but never load — see traps:
 

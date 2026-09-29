@@ -254,7 +254,7 @@ mod win {
             if dev_ioctl(
                 &file,
                 IOCTL_ADD_SESSION_BLACKLIST,
-                Some(&multi_sz_encode(&[instance])),
+                Some(&multi_sz_encode(std::slice::from_ref(&instance))),
                 None,
             )
             .is_ok()

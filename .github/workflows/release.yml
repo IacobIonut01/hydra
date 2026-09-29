@@ -66,7 +66,7 @@ jobs:
 
       - name: Install Linux native build prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip unzip tar autoconf automake libtool
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip unzip tar autoconf automake libtool libudev-dev
 
       - name: Install dependencies
         run: yarn --frozen-lockfile
