@@ -271,6 +271,52 @@ const directoryIsEmptyOrMissing = (dirPath: string) => {
 
 const INNO_UNINSTALL_MARKER = /^unins.*\.(exe|dat|msg)$/i;
 
+/**
+ * A setup.exe already running when the pipeline starts is almost always a
+ * leftover interactive wizard -- Inno refuses a second instance and exits
+ * 1 within a second or two, which looks identical to rejected flags and
+ * also spams a pointless UAC consent per retry. Surface it up front.
+ */
+const installerAlreadyRunning = async (exeName: string): Promise<boolean> => {
+  try {
+    const processes = await NativeAddon.listProcesses();
+    const wanted = exeName.toLowerCase();
+    return processes.some(
+      (process) =>
+        process.name?.toLowerCase() === wanted ||
+        path.basename(process.exe ?? "").toLowerCase() === wanted
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Inno records the exact "Command line:" it received at the top of /LOG --
+ * when a silent run dies before writing anything, that absence (or the
+ * captured line) is the difference between a launch-level failure
+ * (declined UAC, wrapper error) and Inno rejecting our args.
+ */
+const reportInnoLogTail = (logPath: string, gameKey: string) => {
+  try {
+    if (!fs.existsSync(logPath)) {
+      logger.info(
+        `[AutoInstallManager] No Inno /LOG was produced for ${gameKey}; the elevated launch never reached the installer`
+      );
+      return;
+    }
+    const contents = fs.readFileSync(logPath, "utf8");
+    const lines = contents.split(/\r?\n/).filter(Boolean);
+    logger.info(
+      `[AutoInstallManager] Inno /LOG tail for ${gameKey}: ${lines
+        .slice(-15)
+        .join(" | ")}`
+    );
+  } catch {
+    // diagnostics only
+  }
+};
+
 const innoLogAppears = (logPath: string, timeoutMs: number): Promise<boolean> =>
   new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
@@ -690,151 +736,176 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
     withLanguageParam = true
   ): Promise<void> => {
     return new Promise<void>((resolveAttempt) => {
-      activeInstall!.attemptStartedAt = Date.now();
-      const args = silent
-        ? buildInnoSilentArgs(
-            toInstallerDirArg(installDirPath, winePrefixPath),
-            toInstallerDirArg(innoLogPath, winePrefixPath),
-            withLanguageParam ? innoLanguage : undefined
-          )
-        : [];
-
-      if (silent && process.platform === "win32") {
-        activeInstall!.stopSplashWatch?.();
-        activeInstall!.stopSplashWatch = watchForSplashAndUnlock(
-          installer.path
-        );
-        activeInstall!.stopAudioMuteWatch?.();
-        activeInstall!.stopAudioMuteWatch = watchInstallerAudioAndMute(
-          installer.path
-        );
-      }
-
-      void executeGameInstaller(installer.path, {
-        args,
-        gameId: objectId,
-        winePrefixPath,
-        protonPath: game.protonPath,
-        onChildSpawned: (child) => {
-          if (activeInstall?.gameKey === gameKey) {
-            activeInstall.child = child;
-          }
-        },
-        onIndeterminateLaunch: () => {
-          void (async () => {
-            scheduleRescanPoll(
-              shop,
-              objectId,
-              gamePath,
-              winePrefixPath,
-              installDirPath
+      void (async () => {
+        if (silent && withLanguageParam && process.platform === "win32") {
+          if (await installerAlreadyRunning(path.basename(installer.path))) {
+            logger.warn(
+              `[AutoInstallManager] ${installer.path} is already running; the existing copy must finish before a silent install can start`
             );
             await finishInstall({
               failure: { reason: "needs-interaction" },
             });
             resolveAttempt();
-          })();
-        },
-        onExit: (code, _signal) => {
-          void (async () => {
+            return;
+          }
+        }
+
+        activeInstall!.attemptStartedAt = Date.now();
+        const args = silent
+          ? buildInnoSilentArgs(
+              toInstallerDirArg(installDirPath, winePrefixPath),
+              toInstallerDirArg(innoLogPath, winePrefixPath),
+              withLanguageParam ? innoLanguage : undefined
+            )
+          : [];
+
+        if (silent) {
+          logger.info(
+            `[AutoInstallManager] Silent install args for ${gameKey}: ${args.join(" ")}`
+          );
+        }
+
+        if (silent && process.platform === "win32") {
+          activeInstall!.stopSplashWatch?.();
+          activeInstall!.stopSplashWatch = watchForSplashAndUnlock(
+            installer.path
+          );
+          activeInstall!.stopAudioMuteWatch?.();
+          activeInstall!.stopAudioMuteWatch = watchInstallerAudioAndMute(
+            installer.path
+          );
+        }
+
+        void executeGameInstaller(installer.path, {
+          args,
+          gameId: objectId,
+          winePrefixPath,
+          protonPath: game.protonPath,
+          onChildSpawned: (child) => {
             if (activeInstall?.gameKey === gameKey) {
-              activeInstall.child = null;
+              activeInstall.child = child;
             }
-
-            if (activeInstall?.cancelling) {
-              await finishInstall({ failure: { reason: "aborted" } });
+          },
+          onIndeterminateLaunch: () => {
+            void (async () => {
+              scheduleRescanPoll(
+                shop,
+                objectId,
+                gamePath,
+                winePrefixPath,
+                installDirPath
+              );
+              await finishInstall({
+                failure: { reason: "needs-interaction" },
+              });
               resolveAttempt();
-              return;
-            }
+            })();
+          },
+          onExit: (code, _signal) => {
+            void (async () => {
+              if (activeInstall?.gameKey === gameKey) {
+                activeInstall.child = null;
+              }
 
-            const ranMs = activeInstall
-              ? Date.now() - activeInstall.attemptStartedAt
-              : 0;
-            const wroteNothing = directoryIsEmptyOrMissing(installDirPath);
-            const installTook = code === 0 || code === null;
+              if (activeInstall?.cancelling) {
+                await finishInstall({ failure: { reason: "aborted" } });
+                resolveAttempt();
+                return;
+              }
 
-            if (silent && (!installTook || ranMs < SILENT_FAIL_THRESHOLD_MS)) {
-              // A clean exit that left Inno evidence behind (files in the
-              // install dir or a /LOG that opened) means the bootstrapper
-              // handed off to a detached child that is still unpacking.
-              // Everything else means the silent run never took -- rejected
-              // flags, declined UAC -- and only then is escalation right.
-              const silentTook = installTook
-                ? !wroteNothing ||
-                  (await innoLogAppears(innoLogPath, INNO_LOG_GRACE_MS))
-                : false;
+              const ranMs = activeInstall
+                ? Date.now() - activeInstall.attemptStartedAt
+                : 0;
+              const wroteNothing = directoryIsEmptyOrMissing(installDirPath);
+              const installTook = code === 0 || code === null;
 
-              if (!silentTook) {
-                if (withLanguageParam) {
-                  // Inno aborts when /LANG names a language the repack
-                  // does not ship -- indistinguishable from rejected flags
-                  // at this speed, so retry silently without it once
-                  // before calling the flags rejected.
-                  logger.info(
-                    `[AutoInstallManager] Silent install for ${gameKey} failed fast with /LANG (code=${code}); retrying without the language override`
-                  );
-                  await runInstallerAttempt(true, false);
+              if (
+                silent &&
+                (!installTook || ranMs < SILENT_FAIL_THRESHOLD_MS)
+              ) {
+                // A clean exit that left Inno evidence behind (files in the
+                // install dir or a /LOG that opened) means the bootstrapper
+                // handed off to a detached child that is still unpacking.
+                // Everything else means the silent run never took -- rejected
+                // flags, declined UAC -- and only then is escalation right.
+                const silentTook = installTook
+                  ? !wroteNothing ||
+                    (await innoLogAppears(innoLogPath, INNO_LOG_GRACE_MS))
+                  : false;
+
+                if (!silentTook) {
+                  reportInnoLogTail(innoLogPath, gameKey);
+                  if (withLanguageParam) {
+                    // Inno aborts when /LANG names a language the repack
+                    // does not ship -- indistinguishable from rejected flags
+                    // at this speed, so retry silently without it once
+                    // before calling the flags rejected.
+                    logger.info(
+                      `[AutoInstallManager] Silent install for ${gameKey} failed fast with /LANG (code=${code}); retrying without the language override`
+                    );
+                    await runInstallerAttempt(true, false);
+                    resolveAttempt();
+                    return;
+                  }
+
+                  if (interactiveAllowed) {
+                    logger.info(
+                      `[AutoInstallManager] Silent install for ${gameKey} did not take (code=${code}, ranMs=${ranMs}); retrying interactively`
+                    );
+                    await runInstallerAttempt(false);
+                    resolveAttempt();
+                    return;
+                  }
+
+                  await finishInstall({
+                    failure: installTook
+                      ? { reason: "needs-interaction" }
+                      : { reason: "installer-exit", exitCode: code },
+                  });
                   resolveAttempt();
                   return;
                 }
 
-                if (interactiveAllowed) {
-                  logger.info(
-                    `[AutoInstallManager] Silent install for ${gameKey} did not take (code=${code}, ranMs=${ranMs}); retrying interactively`
+                logger.info(
+                  `[AutoInstallManager] Installer for ${gameKey} exited with Inno activity still visible; waiting for the detached installer`
+                );
+                const detachedFinished = await waitForInnoUninstallMarker(
+                  installDirPath,
+                  INNO_COMPLETION_WAIT_MS
+                );
+                if (!detachedFinished) {
+                  logger.warn(
+                    `[AutoInstallManager] Timed out waiting for detached installer for ${gameKey}; completing anyway`
                   );
-                  await runInstallerAttempt(false);
-                  resolveAttempt();
-                  return;
                 }
+                await completeSuccessfulInstall();
+                resolveAttempt();
+                return;
+              }
 
+              if (!installTook) {
                 await finishInstall({
-                  failure: installTook
-                    ? { reason: "needs-interaction" }
-                    : { reason: "installer-exit", exitCode: code },
+                  failure: { reason: "installer-exit", exitCode: code },
                 });
                 resolveAttempt();
                 return;
               }
 
-              logger.info(
-                `[AutoInstallManager] Installer for ${gameKey} exited with Inno activity still visible; waiting for the detached installer`
-              );
-              const detachedFinished = await waitForInnoUninstallMarker(
-                installDirPath,
-                INNO_COMPLETION_WAIT_MS
-              );
-              if (!detachedFinished) {
-                logger.warn(
-                  `[AutoInstallManager] Timed out waiting for detached installer for ${gameKey}; completing anyway`
-                );
-              }
               await completeSuccessfulInstall();
               resolveAttempt();
-              return;
-            }
-
-            if (!installTook) {
+            })();
+          },
+        }).then((launched) => {
+          if (!launched) {
+            void (async () => {
               await finishInstall({
-                failure: { reason: "installer-exit", exitCode: code },
+                failure: { reason: "installer-exit", exitCode: null },
               });
               resolveAttempt();
-              return;
-            }
-
-            await completeSuccessfulInstall();
-            resolveAttempt();
-          })();
-        },
-      }).then((launched) => {
-        if (!launched) {
-          void (async () => {
-            await finishInstall({
-              failure: { reason: "installer-exit", exitCode: null },
-            });
-            resolveAttempt();
-          })();
-        }
-      });
+            })();
+          }
+        });
+      })();
     });
   };
 

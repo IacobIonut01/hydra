@@ -268,6 +268,22 @@ const launchInstallerWithWine = async (
   });
 };
 
+// Capture a child stderr stream and log it once if the process exits
+// non-zero -- the elevated wrapper turns "UAC declined" into a legible
+// Start-Process error instead of an opaque code 1.
+const collectChildStderr = (child: ChildProcess, label: string) => {
+  let stderr = "";
+  child.stderr?.on("data", (chunk) => {
+    if (stderr.length < 8192) stderr += chunk;
+  });
+  child.once("exit", (code) => {
+    const message = stderr.trim();
+    if (code !== 0 && message) {
+      logger.warn(`[installerRunner] ${label} exited ${code}: ${message}`);
+    }
+  });
+};
+
 const launchInstallerDirectly = async (
   filePath: string,
   args: string[],
@@ -277,10 +293,11 @@ const launchInstallerDirectly = async (
   return await new Promise<boolean>((resolve) => {
     const child = spawn(filePath, args, {
       detached: true,
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
       shell: false,
       windowsHide: true,
     });
+    collectChildStderr(child, "installer");
 
     child.once("spawn", () => {
       onChildSpawned?.(child);
@@ -316,8 +333,12 @@ const launchInstallerElevated = async (
 ): Promise<boolean> => {
   return await new Promise<boolean>((resolve) => {
     const argumentList = args.map(toPowerShellLiteral).join(", ");
+    // -LiteralPath, not -FilePath: repack folders are named like
+    // "Cuphead [FitGirl Repack]" and [] are PowerShell wildcard
+    // metacharacters -- -FilePath fails to resolve them and the whole
+    // elevated launch dies before Inno ever runs.
     const command =
-      `$p = Start-Process -FilePath ${toPowerShellLiteral(filePath)} ` +
+      `$p = Start-Process -LiteralPath ${toPowerShellLiteral(filePath)} ` +
       `-ArgumentList @(${argumentList}) -Verb RunAs -Wait -PassThru ` +
       `-ErrorAction Stop; exit $p.ExitCode`;
 
@@ -326,11 +347,12 @@ const launchInstallerElevated = async (
       ["-NoProfile", "-NonInteractive", "-Command", command],
       {
         detached: true,
-        stdio: "ignore",
+        stdio: ["ignore", "ignore", "pipe"],
         shell: false,
         windowsHide: true,
       }
     );
+    collectChildStderr(child, "elevated installer wrapper");
 
     child.once("spawn", () => {
       onChildSpawned?.(child);
