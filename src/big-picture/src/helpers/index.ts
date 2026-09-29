@@ -1,5 +1,6 @@
 export * from "./color";
 export * from "./date";
+export * from "./download-display";
 export * from "./download-options";
 export * from "./downloaders";
 export * from "./focus-auto-scroll";

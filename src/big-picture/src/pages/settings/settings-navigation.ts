@@ -11,6 +11,8 @@ export const LANGUAGE_SECTION_BUTTON_ID = "language-section-button";
 export const BEHAVIOR_SECTION_REGION_ID = "behavior-section-region";
 export const DOWNLOADS_BEHAVIOR_SECTION_REGION_ID =
   "downloads-behavior-section-region";
+export const AUTO_INSTALL_SECTION_REGION_ID = "auto-install-section-region";
+export const AUTO_INSTALL_DIRECTORY_BUTTON_ID = "auto-install-directory-button";
 export const DOWNLOADS_SOURCES_SECTION_REGION_ID =
   "downloads-sources-section-region";
 export const DOWNLOADS_SOURCES_ACTIONS_REGION_ID =
@@ -33,12 +35,23 @@ export const CONTENT_SECTION_REGION_ID = "content-section-region";
 export const BIG_PICTURE_SECTION_REGION_ID = "big-picture-section-region";
 export const BIG_PICTURE_STARTUP_SECTION_REGION_ID =
   "big-picture-startup-section-region";
+export const BIG_PICTURE_DISPLAY_SECTION_REGION_ID =
+  "big-picture-display-section-region";
 export const BIG_PICTURE_AUDIO_SECTION_REGION_ID =
   "big-picture-audio-section-region";
+export const BIG_PICTURE_LAUNCHING_MONITOR_SELECT_ID =
+  "big-picture-launching-monitor-select";
+export const BIG_PICTURE_UI_SCALE_SELECT_ID = "big-picture-ui-scale-select";
+export const BIG_PICTURE_OUTPUT_DEVICE_SELECT_ID =
+  "big-picture-output-device-select";
 export const BIG_PICTURE_DIAGNOSTICS_SECTION_REGION_ID =
   "big-picture-diagnostics-section-region";
 export const BIG_PICTURE_DIAGNOSTICS_POSITION_SELECT_ID =
   "big-picture-diagnostics-position-select";
+export const BIG_PICTURE_GAME_MODE_SECTION_REGION_ID =
+  "big-picture-game-mode-section-region";
+export const BIG_PICTURE_RELAUNCH_AS_ADMIN_BUTTON_ID =
+  "big-picture-relaunch-as-admin-button";
 export const COMPATIBILITY_SECTION_REGION_ID = "compatibility-section-region";
 export const INTEGRATIONS_SECTION_REGION_ID = "integrations-section-region";
 export const ACCOUNT_PRIVACY_PRIVACY_SELECT_ID =
@@ -107,7 +120,6 @@ export const BEHAVIOR_ITEM_FOCUS_IDS = {
   runAtStartup: "behavior-run-at-startup",
   startMinimized: "behavior-start-minimized",
   launchToLibraryPage: "behavior-launch-to-library-page",
-  launchInBigPicture: "behavior-launch-in-big-picture",
   enableAutoInstall: "behavior-enable-auto-install",
 } as const;
 
@@ -119,6 +131,16 @@ export const DOWNLOADS_BEHAVIOR_ITEM_FOCUS_IDS = {
   deleteArchiveFilesAfterExtractionByDefault:
     "downloads-behavior-delete-archive-files-after-extraction-by-default",
   createStartMenuShortcut: "downloads-behavior-create-start-menu-shortcut",
+} as const;
+
+export const AUTO_INSTALL_ITEM_FOCUS_IDS = {
+  autoInstallRepacks: "auto-install-repacks",
+  installDirectory: "auto-install-directory",
+  installDirectoryReset: "auto-install-directory-reset",
+  autoInstallInteractive: "auto-install-interactive",
+  launchAfterInstall: "auto-install-launch-after",
+  deleteInstallerFilesAfterInstall: "auto-install-delete-installer-files",
+  pauseSeedingWhileInstalling: "auto-install-pause-seeding",
 } as const;
 
 export const NOTIFICATIONS_LIBRARY_ITEM_FOCUS_IDS = {
@@ -158,10 +180,40 @@ export const BIG_PICTURE_ITEM_FOCUS_IDS = {
   enableSounds: "big-picture-enable-sounds",
   enableVirtualKeyboard: "big-picture-enable-virtual-keyboard",
   enableDiagnostics: "big-picture-enable-diagnostics",
+  enableGameMode: "big-picture-enable-game-mode",
+  enableInGameKeyboard: "big-picture-enable-in-game-keyboard",
 } as const;
 
 export const COMPATIBILITY_PROTON_OPTION_AUTO_FOCUS_ID =
   "compatibility-proton-option-auto";
+
+export const CONTROLLERS_SECTION_REGION_ID = "controllers-section-region";
+
+export const CONTROLLERS_ITEM_FOCUS_IDS = {
+  enabled: "controllers-enabled",
+  restart: "controllers-restart",
+  emptyHelp: "controllers-empty-help",
+} as const;
+
+function sanitizeControllerFocusToken(value: string) {
+  return value.replaceAll(/[^a-z0-9_-]/gi, "-").toLowerCase();
+}
+
+export function getControllerDeviceRegionId(deviceId: string) {
+  return `controller-device-${sanitizeControllerFocusToken(deviceId)}-region`;
+}
+
+export function getControllerItemFocusId(deviceId: string, item: string) {
+  return `controller-${sanitizeControllerFocusToken(deviceId)}-${item}`;
+}
+
+export function getControllerSwatchFocusId(deviceId: string, index: number) {
+  return `controller-${sanitizeControllerFocusToken(deviceId)}-swatch-${index}`;
+}
+
+export function getControllerRemapFocusId(deviceId: string, controlId: string) {
+  return `controller-${sanitizeControllerFocusToken(deviceId)}-remap-${controlId}`;
+}
 
 export const SETTINGS_HEADER_RETURN_TARGET: FocusOverrideTarget = {
   type: "region",
@@ -211,8 +263,18 @@ export function getLastDownloadsBehaviorItemFocusId(
     : DOWNLOADS_BEHAVIOR_ITEM_FOCUS_IDS.deleteArchiveFilesAfterExtractionByDefault;
 }
 
+export function getLastAutoInstallItemFocusId(autoInstallEnabled: boolean) {
+  return autoInstallEnabled
+    ? AUTO_INSTALL_ITEM_FOCUS_IDS.pauseSeedingWhileInstalling
+    : AUTO_INSTALL_ITEM_FOCUS_IDS.autoInstallRepacks;
+}
+
 export function getDownloadsSourceRemoveButtonFocusId(sourceId: string) {
   return `downloads-source-remove-${sourceId}`;
+}
+
+export function getDownloadsSourceAutoInstallFocusId(sourceId: string) {
+  return `downloads-source-auto-install-${sourceId}`;
 }
 
 export function getCompatibilityProtonOptionFocusId(path: string) {

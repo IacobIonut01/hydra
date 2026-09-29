@@ -160,7 +160,7 @@
   },
   "bottom_panel": {
     "reconnecting": "A reconectar {{title}}…",
-    "recovering": "A recuperar {{title}}… ({{percentage}})",
+    "recovering": "A transferir novamente a parte já guardada de {{title}}… ({{percentage}})",
     "no_downloads_in_progress": "Sem transferências em andamento",
     "downloading_metadata": "A transferir metadados de {{title}}…",
     "downloading": "A transferir {{title}}… ({{percentage}} concluído) - Conclusão {{eta}} - {{speed}}",
@@ -262,7 +262,20 @@
     "downloads_section_title": "Transferências",
     "downloads_section_description": "Encontra atualizações ou versões diferentes para este mesmo título",
     "danger_zone_section_title": "Zona de perigo",
-    "danger_zone_section_description": "Remove o jogo da tua biblioteca ou os ficheiros que foram transferidos pelo Hydra",
+    "danger_zone_section_description": "Ações irreversíveis para este jogo",
+    "danger_zone_progress_group": "Progresso",
+    "danger_zone_removal_group": "Remoção",
+    "danger_zone_update_action": "Atualizar",
+    "danger_zone_reset_action": "Repor",
+    "danger_zone_update_playtime_description": "Define manualmente quanto tempo jogaste",
+    "danger_zone_reset_playtime_description": "Coloca o tempo de jogo deste jogo a zero",
+    "danger_zone_reset_achievements_description": "Apaga todas as conquistas desbloqueadas deste jogo",
+    "danger_zone_reset_achievements_none_unlocked": "Ainda não há conquistas desbloqueadas",
+    "danger_zone_reset_achievements_sign_in_required": "Inicia sessão para repor as conquistas",
+    "danger_zone_remove_files_description": "Elimina os ficheiros transferidos do teu disco",
+    "danger_zone_remove_files_nothing_downloaded": "Ainda não foi transferido nada para este jogo",
+    "danger_zone_remove_files_download_in_progress": "Não é possível remover os ficheiros enquanto uma transferência está em curso",
+    "danger_zone_remove_from_library_description": "Remove o jogo, as suas definições e o tempo de jogo do Hydra",
     "download_in_progress": "Transferência em andamento",
     "download_paused": "Transferência em pausa",
     "extracting": "A extrair",
@@ -571,7 +584,8 @@
     "create_steam_shortcut_modal_vr_flag": "VR Game (In Steam: update the VR flag or delete/recreate the shortcut)",
     "create_steam_shortcut_modal_create_button": "Create",
     "create_steam_shortcut_modal_cancel_button": "Cancel",
-    "download_error_archive_org_invalid_file_url": "Este link do archive.org não aponta para um ficheiro. Use um link direto para o ficheiro."
+    "download_error_archive_org_invalid_file_url": "Este link do archive.org não aponta para um ficheiro. Use um link direto para o ficheiro.",
+    "streaming_now": "A transmitir agora"
   },
   "activation": {
     "title": "Ativação",
@@ -583,7 +597,7 @@
   },
   "downloads": {
     "reconnecting": "A reconectar…",
-    "recovering": "A recuperar transferência… {{percentage}}",
+    "recovering": "A transferir novamente a parte já guardada… {{percentage}}",
     "resume": "Continuar",
     "pause": "Colocar em pausa",
     "eta": "Conclusão {{eta}}",
@@ -950,6 +964,14 @@
     "debrid_description": "Serviços Debrid são transferidores premium sem restrições que permitem transferir rapidamente ficheiros alojados em vários serviços de alojamento de ficheiros, limitados apenas pela velocidade de internet.",
     "create_real_debrid_account": "Clica aqui se ainda não tens uma conta do Real-Debrid",
     "create_torbox_account": "Clica aqui se ainda não tens uma conta do TorBox",
+    "big_picture_launching_monitor": "Big Picture launching monitor",
+    "system_default_monitor": "System default monitor",
+    "primary_monitor": "Primary",
+    "missing_monitor": "Missing display",
+    "big_picture_output_device": "Big Picture output device",
+    "system_default_audio_device": "System default audio device",
+    "default_audio_device": "Default",
+    "missing_audio_device": "Missing audio device",
     "big_picture": "Big Picture",
     "big_picture_startup": "Inicialização",
     "big_picture_audio": "Áudio",
@@ -958,7 +980,9 @@
     "big_picture_enable_sounds": "Ativar sons do Big Picture",
     "big_picture_enable_virtual_keyboard": "Ativar teclado virtual",
     "big_picture_enable_diagnostics": "Ativar diagnóstico de navegação",
-    "big_picture_diagnostics_position": "Posição do diagnóstico"
+    "big_picture_diagnostics_position": "Posição do diagnóstico",
+    "console_streaming": "Streaming de consola",
+    "enable_console_streaming": "Ativar streaming de consola (Moonlight)"
   },
   "notifications": {
     "download_complete": "Transferência concluída",
@@ -1009,7 +1033,13 @@
     "clear_filters": "Limpar {{filterCount}} selecionados"
   },
   "modal": {
-    "close": "Botão de fechar"
+    "close": "Botão de fechar",
+    "stream_pairing_title": "Emparelhar dispositivo de streaming",
+    "stream_pairing_description": "Introduz o PIN apresentado no teu dispositivo Moonlight para o emparelhar com o Hydra.",
+    "stream_pairing_placeholder": "PIN",
+    "stream_pairing_submit": "Confirmar",
+    "stream_pairing_error_invalid_pin": "PIN incorreto. Verifica o PIN no teu dispositivo e tenta novamente.",
+    "stream_pairing_error_no_session": "A sessão de emparelhamento expirou. Inicia o emparelhamento novamente a partir do teu dispositivo."
   },
   "forms": {
     "toggle_password_visibility": "Alternar visibilidade da palavra-passe"

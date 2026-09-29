@@ -7,11 +7,13 @@ import {
   type SkuRegion,
 } from "@renderer/helpers";
 import type { GameShop, ShopAssets } from "@types";
+import { handleEpicDescriptionLinkClick } from "@shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   buildLibraryToastOptions,
+  getBigPictureDownloadsPath,
   getBigPictureGameDetailsPath,
   getItemFocusTarget,
 } from "../../helpers";
@@ -585,6 +587,7 @@ export default function Game() {
     preferredAssets,
     openGame,
     closeGame,
+    returnToGame,
     toggleFavorite,
     updateGame,
     refreshGameDetails,
@@ -634,7 +637,7 @@ export default function Game() {
   const isLaunchboxGame = shop === "launchbox";
   const isCustomGame = shop === "custom";
   const developer = shopDetails?.developers?.[0] ?? "";
-  const publisher = shopDetails?.publishers?.[0] ?? "";
+  const publisher = shopDetails?.publishers?.[0] ?? developer;
   const releaseDate = shopDetails?.release_date?.date ?? "";
   const shopGenres = useMemo(() => {
     return extractGenreNames(shopDetails?.genres ?? []);
@@ -942,6 +945,22 @@ export default function Game() {
     },
     [game, navigate, openGame, showErrorToast, showSuccessToast, updateGame]
   );
+
+  const handleInstallGame = useCallback(async () => {
+    if (!game) return;
+
+    const response = await globalThis.window.electron.installGame(
+      game.shop,
+      game.objectId
+    );
+
+    if (!response.ok) {
+      showErrorToast("Install failed", {
+        message:
+          "Hydra couldn't start the installer. Try again from the Downloads page.",
+      });
+    }
+  }, [game, showErrorToast]);
 
   const handlePlayGame = useCallback(async () => {
     if (!game) return;
@@ -1456,10 +1475,15 @@ export default function Game() {
             toggleFavorite={toggleFavorite}
             onPlay={handlePlayGame}
             onDownload={handleOpenDownloadModal}
+            onInstall={handleInstallGame}
+            onShowDownloadProgress={() =>
+              navigate(getBigPictureDownloadsPath())
+            }
             onAddToLibrary={handleAddToLibrary}
             onOpenDownloadOptions={handleOpenDownloadModal}
             onOpenSettings={() => setIsGameSettingsModalOpen(true)}
             onClose={closeGame}
+            onReturnToGame={returnToGame}
             isAddingToLibrary={isAddingToLibrary}
             canAddToLibrary={canAddToLibrary}
             downNavigationTarget={contentBelowHeroTarget}
@@ -1517,7 +1541,29 @@ export default function Game() {
                   >
                     <div
                       ref={descriptionContainerRef}
-                      className="game-page__detailed-description"
+                      onClickCapture={
+                        shop === "epic"
+                          ? (event) =>
+                              handleEpicDescriptionLinkClick(
+                                event,
+                                globalThis.window.electron.openExternal
+                              )
+                          : undefined
+                      }
+                      onAuxClickCapture={
+                        shop === "epic"
+                          ? (event) =>
+                              handleEpicDescriptionLinkClick(
+                                event,
+                                globalThis.window.electron.openExternal
+                              )
+                          : undefined
+                      }
+                      className={`game-page__detailed-description ${
+                        shop === "epic"
+                          ? "game-page__detailed-description--epic"
+                          : ""
+                      }`}
                       data-suppress-navigation-autoscroll="true"
                     >
                       {descriptionBlocks.map((block, index) => (

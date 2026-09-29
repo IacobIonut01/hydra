@@ -8,13 +8,14 @@ import {
 } from "@main/services";
 import { createGame } from "@main/services/library-sync";
 import { downloadsSublevel, gamesSublevel, levelKeys } from "@main/level";
-import { parseBytes } from "@shared";
+import { Downloader, parseBytes } from "@shared";
 import {
   getGlobalTrackers,
   handleDownloadError,
   isKnownDownloadError,
   prepareGameEntry,
 } from "@main/helpers";
+import { isDebridPendingError } from "@main/services/download/debrid-pending";
 
 const addGameToQueue = async (
   _event: Electron.IpcMainInvokeEvent,
@@ -32,6 +33,11 @@ const addGameToQueue = async (
     fileSize,
     fileIndices,
     selectedFilesSize,
+    downloadSourceId,
+    downloadSourceName,
+    repackTitle,
+    automaticallyInstall,
+    installPath,
   } = payload;
 
   const parsedFileSize = parseBytes(fileSize ?? null);
@@ -63,9 +69,21 @@ const addGameToQueue = async (
       fileIndices,
       selectedFilesSize,
       customTrackers: globalTrackers,
+      downloadSourceId,
+      downloadSourceName,
+      repackTitle,
+      automaticallyInstall,
+      installPath: installPath ?? null,
     };
 
-    await DownloadManager.validateDownloadUrl(download);
+    if (downloader !== Downloader.RealDebrid || !uri.startsWith("magnet:")) {
+      try {
+        await DownloadManager.validateDownloadUrl(download);
+      } catch (error) {
+        if (!isDebridPendingError(error, downloader)) throw error;
+        download.awaitingDebrid = true;
+      }
+    }
     await prepareGameEntry({ gameKey, title, objectId, shop });
     await DownloadManager.cancelDownload(gameKey).catch(() => null);
   } catch (err: unknown) {
@@ -83,7 +101,11 @@ const addGameToQueue = async (
   try {
     await downloadsSublevel.put(gameKey, download);
     didWriteDownload = true;
-    await DownloadOrchestrator.enqueuePreparedDownload(download);
+    if (download.awaitingDebrid) {
+      await DownloadOrchestrator.saveAwaitingDebridDownload(download);
+    } else {
+      await DownloadOrchestrator.enqueuePreparedDownload(download);
+    }
 
     const updatedGame = await gamesSublevel.get(gameKey);
 

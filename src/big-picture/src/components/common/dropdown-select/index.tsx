@@ -49,6 +49,8 @@ export interface DropdownSelectProps<TValue extends string = string> {
   className?: string;
   menuRegionId?: string;
   ariaLabel?: string;
+  /** Replaces the default trigger content (selected label + chevron). */
+  triggerContent?: ReactNode;
 }
 
 function getOptionKeySuffix(value: string) {
@@ -122,6 +124,7 @@ export function DropdownSelect<TValue extends string = string>({
   className = "",
   menuRegionId,
   ariaLabel,
+  triggerContent,
 }: Readonly<DropdownSelectProps<TValue>>) {
   const generatedId = useId();
   const { setFocus } = useNavigation();
@@ -304,16 +307,20 @@ export function DropdownSelect<TValue extends string = string>({
             data-disabled="true"
             disabled
           >
-            <span className="dropdown-select__trigger-main">
-              {renderOptionContent(selectedOption, resolvedLabel, {
-                fallbackIcon: leadingIcon,
-              })}
-            </span>
-            <CaretDownIcon
-              size={18}
-              className="dropdown-select__chevron"
-              aria-hidden="true"
-            />
+            {triggerContent ?? (
+              <>
+                <span className="dropdown-select__trigger-main">
+                  {renderOptionContent(selectedOption, resolvedLabel, {
+                    fallbackIcon: leadingIcon,
+                  })}
+                </span>
+                <CaretDownIcon
+                  size={18}
+                  className="dropdown-select__chevron"
+                  aria-hidden="true"
+                />
+              </>
+            )}
           </button>
         ) : (
           <FocusItem
@@ -332,16 +339,20 @@ export function DropdownSelect<TValue extends string = string>({
               data-open={isOpen || undefined}
               onClick={handleTriggerClick}
             >
-              <span className="dropdown-select__trigger-main">
-                {renderOptionContent(selectedOption, resolvedLabel, {
-                  fallbackIcon: leadingIcon,
-                })}
-              </span>
-              <CaretDownIcon
-                size={18}
-                className="dropdown-select__chevron"
-                aria-hidden="true"
-              />
+              {triggerContent ?? (
+                <>
+                  <span className="dropdown-select__trigger-main">
+                    {renderOptionContent(selectedOption, resolvedLabel, {
+                      fallbackIcon: leadingIcon,
+                    })}
+                  </span>
+                  <CaretDownIcon
+                    size={18}
+                    className="dropdown-select__chevron"
+                    aria-hidden="true"
+                  />
+                </>
+              )}
             </button>
           </FocusItem>
         )}

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { PencilIcon } from "@primer/octicons-react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@renderer/components";
 import { useSearchParams } from "react-router-dom";
 
 import { HeroPanel } from "./hero";
@@ -23,7 +24,11 @@ import { CloudSaveWidget } from "./cloud-save-v2";
 import { getCloudSaveVisibility } from "./cloud-save-visibility";
 import { SimilarGames } from "./similar-games/similar-games";
 
-import { AuthPage, getDisplayedPlayTimeInMilliseconds } from "@shared";
+import {
+  AuthPage,
+  getDisplayedPlayTimeInMilliseconds,
+  handleEpicDescriptionLinkClick,
+} from "@shared";
 import { cloudSyncContext, gameDetailsContext } from "@renderer/context";
 
 import cloudIconAnimated from "@renderer/assets/icons/cloud-animated.gif";
@@ -418,6 +423,13 @@ export function GameDetailsContent() {
                 <div className="game-details__hero-standard-meta">
                   <GameLogo game={game} shopDetails={shopDetails} />
                   {classicsChips}
+                  {isCustomGame && (
+                    <div className="game-details__hero-classics-chips">
+                      <span className="game-details__hero-classics-chip">
+                        {t("custom_game_badge")}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -477,10 +489,30 @@ export function GameDetailsContent() {
 
             <div
               ref={descriptionRef}
+              onClickCapture={
+                shop === "epic"
+                  ? (event) =>
+                      handleEpicDescriptionLinkClick(
+                        event,
+                        globalThis.window.electron.openExternal
+                      )
+                  : undefined
+              }
+              onAuxClickCapture={
+                shop === "epic"
+                  ? (event) =>
+                      handleEpicDescriptionLinkClick(
+                        event,
+                        globalThis.window.electron.openExternal
+                      )
+                  : undefined
+              }
               dangerouslySetInnerHTML={{
                 __html: aboutTheGame,
               }}
               className={`game-details__description ${
+                shop === "epic" ? "game-details__description--epic" : ""
+              } ${
                 isDescriptionExpanded
                   ? "game-details__description--expanded"
                   : isDescriptionOverflowing
@@ -490,13 +522,13 @@ export function GameDetailsContent() {
             />
 
             {aboutTheGame && isDescriptionOverflowing && (
-              <button
-                type="button"
+              <Button
+                theme="outline"
                 className="game-details__description-toggle"
                 onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
               >
                 {isDescriptionExpanded ? t("show_less") : t("show_more")}
-              </button>
+              </Button>
             )}
 
             {shop && objectId && (

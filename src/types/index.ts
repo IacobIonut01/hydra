@@ -12,6 +12,7 @@ import type { GameContentWarning } from "./souvenir.types";
 
 export type FriendRequestAction = "ACCEPTED" | "REFUSED" | "CANCEL";
 export * from "./download-contract";
+export * from "./controller.types";
 
 export type HydraCloudFeature =
   | "achievements"
@@ -68,12 +69,14 @@ export interface ShopAssets {
   selectedArtworkTypes?: ArtworkAssetType[];
 }
 
-export type ShopDetails = SteamAppDetails & {
+export type ShopDetails = Omit<SteamAppDetails, "steam_appid"> & {
+  steam_appid?: SteamAppDetails["steam_appid"];
   objectId: string;
   platform?: string;
   skus?: string[];
   retroAchievementsGameId?: number | null;
   descriptionLanguage?: string;
+  supportedLanguages?: string[];
 };
 
 export type ShopDetailsWithAssets = ShopDetails & {
@@ -91,6 +94,7 @@ export interface TorrentFilesResponse {
   name: string;
   totalSize: number;
   files: TorrentFile[];
+  archiveOnly?: boolean;
 }
 
 export type UserGame = {
@@ -164,6 +168,11 @@ export interface StartGameDownloadPayload {
   fileSize?: string | null;
   fileIndices?: number[];
   selectedFilesSize?: number | null;
+  downloadSourceId?: string;
+  downloadSourceName?: string;
+  repackTitle?: string;
+  automaticallyInstall?: boolean;
+  installPath?: string | null;
 }
 
 export interface UserFriend {
@@ -480,6 +489,44 @@ export interface GameLauncherStatusPayload {
   detail: string | null;
 }
 
+export type GameLaunchPhase =
+  | "preparing"
+  | "syncing-saves"
+  | "checking-redistributables"
+  | "exporting-achievements"
+  | "launching"
+  | "awaiting-process"
+  | "running"
+  | "failed";
+
+export type GameLaunchErrorCode =
+  | "executable-not-found"
+  | "spawn-failed"
+  | "wine-failed"
+  | "steam-protocol-failed"
+  | "cloud-save-blocked"
+  | "process-not-detected"
+  | "cancelled";
+
+export interface GameLaunchState {
+  gameKey: string;
+  shop: GameShop;
+  objectId: string;
+  phase: GameLaunchPhase;
+  error: GameLaunchErrorCode | null;
+  detail: string | null;
+}
+
+export type GameLaunchResult =
+  | { status: "launched"; pid: number | null }
+  | { status: "blocked" }
+  | { status: "cancelled" }
+  | {
+      status: "failed";
+      error: GameLaunchErrorCode;
+      detail?: string | null;
+    };
+
 export interface AchievementNotificationInfo {
   title: string;
   description?: string;
@@ -547,6 +594,8 @@ export type NotificationType =
 
 export type LocalNotificationType =
   | "EXTRACTION_COMPLETE"
+  | "INSTALL_COMPLETE"
+  | "INSTALL_FAILED"
   | "DOWNLOAD_COMPLETE"
   | "UPDATE_AVAILABLE"
   | "ACHIEVEMENT_UNLOCKED"
@@ -669,6 +718,7 @@ export type CatalogueSearchResult = {
   objectId: string;
   title: string;
   shop: GameShop;
+  availableShops?: GameShop[];
   genres: string[];
   releaseYear: number | null;
   tier?: string | null;
@@ -713,6 +763,8 @@ export * from "./game.types";
 export * from "./steam.types";
 export * from "./steam-integration.types";
 export * from "./download.types";
+export * from "./display.types";
+export * from "./big-picture-ui-scale";
 export * from "./ludusavi.types";
 export * from "./how-long-to-beat.types";
 export * from "./level.types";
@@ -726,3 +778,16 @@ export * from "./souvenir.types";
 export type ExtractionFailure =
   | { reason: "unsupported-format"; format: string }
   | { reason: "file-not-found" };
+
+export type InstallFailure =
+  | { reason: "no-installer" }
+  | { reason: "installer-exit"; exitCode: number | null }
+  | {
+      reason: "insufficient-space";
+      requiredBytes: number;
+      freeBytes: number;
+    }
+  | { reason: "aborted" }
+  | { reason: "unsupported"; message?: string }
+  | { reason: "needs-interaction" };
+export * from "./virtual-keys";

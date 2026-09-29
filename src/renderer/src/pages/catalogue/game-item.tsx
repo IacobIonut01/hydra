@@ -1,6 +1,7 @@
+import { StoreIcons } from "@renderer/components/store-icons/store-icons";
 import { Badge } from "@renderer/components/badge/badge";
 import { buildGameDetailsPath } from "@renderer/helpers";
-import { useAppSelector, useLibrary } from "@renderer/hooks";
+import { useGenreTranslation, useLibrary } from "@renderer/hooks";
 import { lazy, Suspense, useMemo, useState, useEffect } from "react";
 import { Link } from "@renderer/components/link/link";
 
@@ -20,18 +21,17 @@ export interface GameItemProps {
 }
 
 export function GameItem({ game }: GameItemProps) {
-  const { i18n, t } = useTranslation("game_details");
+  const { t } = useTranslation("game_details");
 
-  const language = i18n.language.split("-")[0];
-
-  const { steamGenres } = useAppSelector((state) => state.catalogueSearch);
+  const { translateGenre } = useGenreTranslation();
 
   const [isAddingToLibrary, setIsAddingToLibrary] = useState(false);
 
   const [added, setAdded] = useState(false);
 
   const { library, updateLibrary } = useLibrary();
-  const shouldShowProtonFeatures = window.electron.platform === "linux";
+  const shouldShowProtonFeatures =
+    window.electron.platform === "linux" && game.shop === "steam";
 
   useEffect(() => {
     const exists = library.some(
@@ -61,23 +61,10 @@ export function GameItem({ game }: GameItemProps) {
     }
   };
 
-  const genres = useMemo(() => {
-    return game.genres?.map((genre) => {
-      const index = steamGenres["en"]?.findIndex(
-        (steamGenre) => steamGenre === genre
-      );
-
-      if (
-        index !== undefined &&
-        steamGenres[language] &&
-        steamGenres[language][index]
-      ) {
-        return steamGenres[language][index];
-      }
-
-      return genre;
-    });
-  }, [game.genres, language, steamGenres]);
+  const genres = useMemo(
+    () => game.genres?.map(translateGenre),
+    [game.genres, translateGenre]
+  );
 
   const libraryImage = useMemo(() => {
     if (game.libraryImageUrl) {
@@ -99,6 +86,11 @@ export function GameItem({ game }: GameItemProps) {
       </div>
     );
   }, [game.libraryImageUrl, game.title]);
+
+  const availableShops = useMemo(
+    () => [game.shop, ...(game.availableShops ?? [])],
+    [game.availableShops, game.shop]
+  );
 
   const rawProtonValue =
     game.tier ??
@@ -137,6 +129,8 @@ export function GameItem({ game }: GameItemProps) {
               {t("no_genres", { ns: "catalogue" })}
             </span>
           )}
+
+          <StoreIcons shops={availableShops} />
 
           <div className="game-item__repackers">
             {game.downloadSources.map((sourceName) => (

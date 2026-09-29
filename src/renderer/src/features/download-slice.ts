@@ -9,11 +9,17 @@ export interface ExtractionInfo {
   progress: number;
 }
 
+export interface InstallInfo {
+  visibleId: string;
+  bytesWritten: number;
+}
+
 export interface DownloadState {
   lastPacket: DownloadProgress | null;
   gameId: string | null;
   gamesWithDeletionInProgress: string[];
   extraction: ExtractionInfo | null;
+  install: InstallInfo | null;
   peakSpeeds: Record<string, number>;
   speedHistory: Record<string, number[]>;
 }
@@ -23,6 +29,7 @@ const initialState: DownloadState = {
   gameId: null,
   gamesWithDeletionInProgress: [],
   extraction: null,
+  install: null,
   peakSpeeds: {},
   speedHistory: {},
 };
@@ -93,6 +100,23 @@ export const downloadSlice = createSlice({
     clearExtraction: (state) => {
       state.extraction = null;
     },
+    setInstallProgress: (
+      state,
+      action: PayloadAction<{
+        shop: GameShop;
+        objectId: string;
+        bytesWritten: number;
+      }>
+    ) => {
+      const { shop, objectId, bytesWritten } = action.payload;
+      state.install = {
+        visibleId: `${shop}:${objectId}`,
+        bytesWritten,
+      };
+    },
+    clearInstall: (state) => {
+      state.install = null;
+    },
     updatePeakSpeed: (
       state,
       action: PayloadAction<{ gameId: string; speed: number }>
@@ -117,6 +141,8 @@ export const {
   removeGameFromDeleting,
   setExtractionProgress,
   clearExtraction,
+  setInstallProgress,
+  clearInstall,
   updatePeakSpeed,
   clearPeakSpeed,
 } = downloadSlice.actions;

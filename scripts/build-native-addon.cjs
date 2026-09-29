@@ -138,7 +138,12 @@ const build = async () => {
   }
 
   fs.mkdirSync(outputDir, { recursive: true });
-  fs.copyFileSync(sourceLibraryPath, outputNodePath);
+  // Replace atomically: overwriting a signed binary in place while the app
+  // has it mapped leaves macOS with a stale vnode signature — every new
+  // load gets SIGKILL ("Invalid Page"). Temp+rename gives it a new inode.
+  const tmpNodePath = `${outputNodePath}.tmp`;
+  fs.copyFileSync(sourceLibraryPath, tmpNodePath);
+  fs.renameSync(tmpNodePath, outputNodePath);
 
   await copySidecarLibrariesOnWindows();
   await ensureDepsResolvableOnLinux();

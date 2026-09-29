@@ -28,9 +28,13 @@ import {
   logger,
   migrateCloudSaveAutomaticSyncDefaults,
   groupedSouvenirWorker,
+  reconcileInstallsOnStartup,
+  seedInstallStubs,
+  ControllerService,
 } from "@main/services";
 import { migrateDownloadSources } from "./helpers/migrate-download-sources";
 import { getDirSize } from "./services/download/helpers";
+import { isDebridPendingError } from "./services/download/debrid-pending";
 import { GofileApi } from "./services/hosters";
 import { clearLegacyAchievementPersistence } from "./level/clear-legacy-achievements";
 import { startSteamSyncOnStartup } from "./services/steam-integration/steam-startup-sync";
@@ -103,6 +107,10 @@ export const loadState = async () => {
   Ludusavi.copyConfigFileToUserData();
   Ludusavi.copyBinaryToUserData();
 
+  void ControllerService.initialize().catch((error) =>
+    logger.warn("Failed to initialize controller service", error)
+  );
+
   if (process.platform === "linux") {
     DeckyPlugin.checkAndUpdateIfOutdated();
   }
@@ -128,6 +136,14 @@ export const loadState = async () => {
 
   const downloadToResume =
     await DownloadOrchestrator.bootstrapDownloadsOnStartup();
+
+  await reconcileInstallsOnStartup().catch((error) =>
+    logger.warn("Failed to reconcile installs on startup", error)
+  );
+
+  await seedInstallStubs().catch((error) =>
+    logger.warn("Failed to seed install stubs", error)
+  );
   const normalizedDownloads = await downloadsSublevel
     .values()
     .all()
@@ -185,9 +201,11 @@ export const loadState = async () => {
   if (downloadToResume && !isTorrent) {
     // Initialize torrent seeding, then resume the HTTP download with JS.
     await DownloadManager.initializeTorrentService(undefined, downloadsToSeed);
-    await DownloadManager.startDownload(downloadToResume).catch((err) => {
-      // If resume fails, just log it - user can manually retry
+    await DownloadManager.startDownload(downloadToResume).catch(async (err) => {
       logger.error("Failed to auto-resume download:", err);
+      if (isDebridPendingError(err, downloadToResume.downloader)) {
+        await DownloadOrchestrator.saveAwaitingDebridDownload(downloadToResume);
+      }
     });
   } else {
     await DownloadManager.initializeTorrentService(

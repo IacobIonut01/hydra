@@ -45,4 +45,5 @@ export const levelKeys = {
   cloudSaveCustomPaths: "cloud-save-custom-paths",
   cloudSavePendingDeletions: "cloud-save-pending-deletions",
   steamSyncRun: "steamSyncRun",
+  controllerProfiles: "controllerProfiles",
 };

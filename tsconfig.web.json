@@ -1,5 +1,5 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "extends": "./node_modules/@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
@@ -16,14 +16,14 @@
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
+    "moduleResolution": "bundler",
     "paths": {
       "@renderer/*": [
-        "src/renderer/src/*"
+        "./src/renderer/src/*"
       ],
-      "@types": ["src/types/index.ts"],
-      "@locales": ["src/locales/index.ts"],
-      "@shared": ["src/shared/index.ts"]
+      "@types": ["./src/types/index.ts"],
+      "@locales": ["./src/locales/index.ts"],
+      "@shared": ["./src/shared/index.ts"]
     }
   }
 }

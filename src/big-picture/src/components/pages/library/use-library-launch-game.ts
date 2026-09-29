@@ -1,9 +1,11 @@
 import type { LibraryGame } from "@types";
 import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { getClassicsLaunchErrorCode } from "@renderer/helpers";
 import { IS_DESKTOP } from "../../../constants";
 import { NavigationAudioService } from "../../../services";
-import { useBigPictureToast } from "../../../hooks";
+import { useBigPictureToast, useUserPreferences } from "../../../hooks";
+import { getBigPictureGameLaunchPath } from "../../../helpers/game";
 
 const CLASSICS_LAUNCH_ERROR_TOASTS: Record<
   string,
@@ -35,6 +37,8 @@ export function useLibraryLaunchGame(
   onMissingExecutable: (game: LibraryGame) => void
 ) {
   const { showErrorToast } = useBigPictureToast();
+  const navigate = useNavigate();
+  const userPreferences = useUserPreferences();
 
   return useCallback(
     async (game: LibraryGame) => {
@@ -51,7 +55,9 @@ export function useLibraryLaunchGame(
           await globalThis.window.electron.openClassicsGame(
             game.shop,
             game.objectId,
-            game.selectedDiscPath ?? undefined
+            game.selectedDiscPath ?? undefined,
+            undefined,
+            "big-picture"
           );
           globalThis.window.dispatchEvent(new Event("library-update"));
         } catch (error) {
@@ -71,13 +77,19 @@ export function useLibraryLaunchGame(
       }
 
       NavigationAudioService.getInstance().play("launch");
+
+      if (userPreferences?.bigPictureGameModeEnabled) {
+        navigate(getBigPictureGameLaunchPath(game));
+      }
+
       await globalThis.window.electron.openGame(
         game.shop,
         game.objectId,
         game.executablePath,
-        game.launchOptions
+        game.launchOptions,
+        "big-picture"
       );
     },
-    [onMissingExecutable, showErrorToast]
+    [onMissingExecutable, showErrorToast, navigate, userPreferences]
   );
 }

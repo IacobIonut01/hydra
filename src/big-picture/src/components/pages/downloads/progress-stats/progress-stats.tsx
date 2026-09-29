@@ -9,6 +9,7 @@ interface DownloadsProgressStatsProps {
   progressLabel: string;
   transferLabel: string;
   etaLabel: string;
+  indeterminate?: boolean;
   accentColor?: string;
 }
 
@@ -23,6 +24,7 @@ export function DownloadsProgressStats({
   progressLabel,
   transferLabel,
   etaLabel,
+  indeterminate = false,
   accentColor,
 }: Readonly<DownloadsProgressStatsProps>) {
   const clampedProgress = clampProgress(progress);
@@ -38,8 +40,16 @@ export function DownloadsProgressStats({
         <Typography variant="h5">{progressLabel}</Typography>
       </div>
 
-      <div className="downloads-progress-stats__bar" aria-hidden="true">
-        <div className="downloads-progress-stats__fill" style={fillStyle} />
+      <div
+        className={`downloads-progress-stats__bar${
+          indeterminate ? " downloads-progress-stats__bar--indeterminate" : ""
+        }`}
+        aria-hidden="true"
+      >
+        <div
+          className="downloads-progress-stats__fill"
+          style={indeterminate ? undefined : fillStyle}
+        />
       </div>
 
       <div className="downloads-progress-stats__row downloads-progress-stats__row--secondary">

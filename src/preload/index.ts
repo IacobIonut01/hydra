@@ -42,11 +42,15 @@ import type {
   MemcardFormatState,
   MemcardRestoreResult,
   MemcardRestoreTarget,
+  HydraAudioDevice,
+  HydraDisplay,
+  LaunchSource,
   ArtworkAssetType,
   ArtworkKind,
   ArtworkPage,
   GameArtworkSelection,
   GameLauncherStatusPayload,
+  GameLaunchState,
   CloudSaveAutomaticSyncModeChangedEvent,
   CloudSaveAutomaticSyncEvent,
   CloudSaveConflictResolution,
@@ -72,8 +76,12 @@ import type {
   SteamSyncRunStatus,
   SteamConnectErrorCode,
   ExtractionFailure,
+  InstallFailure,
+  ControllerDeviceInfo,
+  ControllerProfile,
+  ControllerState,
 } from "@types";
-import type { AuthPage } from "@shared";
+import type { AuthPage, Downloader } from "@shared";
 import type { AxiosProgressEvent } from "axios";
 
 const fileExplorerApi = {
@@ -395,6 +403,14 @@ contextBridge.exposeInMainWorld("electron", {
   },
   getTorrentFiles: (magnet: string) =>
     ipcRenderer.invoke("getTorrentFiles", magnet) as Promise<
+      { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
+    >,
+  getTorBoxFiles: (magnet: string) =>
+    ipcRenderer.invoke("getTorBoxFiles", magnet) as Promise<
+      { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
+    >,
+  getDebridFiles: (magnet: string, provider: Downloader) =>
+    ipcRenderer.invoke("getDebridFiles", magnet, provider) as Promise<
       { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
     >,
 
@@ -1046,6 +1062,10 @@ contextBridge.exposeInMainWorld("electron", {
   } | null> => ipcRenderer.invoke("getActiveClassicsImport"),
   openGameInstaller: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("openGameInstaller", shop, objectId),
+  installGame: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("installGame", shop, objectId),
+  cancelGameInstall: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("cancelGameInstall", shop, objectId),
   getGameInstallerActionType: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("getGameInstallerActionType", shop, objectId),
   openGameInstallerPath: (shop: GameShop, objectId: string) =>
@@ -1065,21 +1085,32 @@ contextBridge.exposeInMainWorld("electron", {
     shop: GameShop,
     objectId: string,
     executablePath: string,
-    launchOptions?: string | null
+    launchOptions?: string | null,
+    launchSource?: LaunchSource
   ) =>
     ipcRenderer.invoke(
       "openGame",
       shop,
       objectId,
       executablePath,
-      launchOptions
+      launchOptions,
+      launchSource
     ),
   openClassicsGame: (
     shop: GameShop,
     objectId: string,
     discPath?: string,
-    force?: boolean
-  ) => ipcRenderer.invoke("openClassicsGame", shop, objectId, discPath, force),
+    force?: boolean,
+    launchSource?: LaunchSource
+  ) =>
+    ipcRenderer.invoke(
+      "openClassicsGame",
+      shop,
+      objectId,
+      discPath,
+      force,
+      launchSource
+    ),
   updateClassicsDisc: (
     shop: GameShop,
     objectId: string,
@@ -1095,6 +1126,20 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("getEmulatorRomExtensions", system),
   closeGame: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("closeGame", shop, objectId),
+  cancelGameLaunch: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("cancelGameLaunch", shop, objectId),
+  getGameLaunchState: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("getGameLaunchState", shop, objectId),
+  focusRunningGame: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("focusRunningGame", shop, objectId),
+  onGameLaunchState: (cb: (state: GameLaunchState) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      state: GameLaunchState
+    ) => cb(state);
+    ipcRenderer.on("on-game-launch-state", listener);
+    return () => ipcRenderer.removeListener("on-game-launch-state", listener);
+  },
   removeGameFromLibrary: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("removeGameFromLibrary", shop, objectId),
   removeGame: (shop: GameShop, objectId: string) =>
@@ -1145,8 +1190,10 @@ contextBridge.exposeInMainWorld("electron", {
       gamesRunning: Pick<GameRunning, "id" | "sessionDurationInMillis">[]
     ) => void
   ) => {
-    const listener = (_event: Electron.IpcRendererEvent, gamesRunning) =>
-      cb(gamesRunning);
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      gamesRunning: Pick<GameRunning, "id" | "sessionDurationInMillis">[]
+    ) => cb(gamesRunning);
     ipcRenderer.on("on-games-running", listener);
     return () => ipcRenderer.removeListener("on-games-running", listener);
   },
@@ -1205,6 +1252,42 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.on("on-extraction-failed", listener);
     return () => ipcRenderer.removeListener("on-extraction-failed", listener);
   },
+  onInstallProgress: (
+    cb: (shop: GameShop, objectId: string, bytesWritten: number) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      shop: GameShop,
+      objectId: string,
+      bytesWritten: number
+    ) => cb(shop, objectId, bytesWritten);
+    ipcRenderer.on("on-install-progress", listener);
+    return () => ipcRenderer.removeListener("on-install-progress", listener);
+  },
+  onInstallComplete: (
+    cb: (shop: GameShop, objectId: string, installedPath: string | null) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      shop: GameShop,
+      objectId: string,
+      installedPath: string | null
+    ) => cb(shop, objectId, installedPath);
+    ipcRenderer.on("on-install-complete", listener);
+    return () => ipcRenderer.removeListener("on-install-complete", listener);
+  },
+  onInstallFailed: (
+    cb: (shop: GameShop, objectId: string, failure: InstallFailure) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      shop: GameShop,
+      objectId: string,
+      failure: InstallFailure
+    ) => cb(shop, objectId, failure);
+    ipcRenderer.on("on-install-failed", listener);
+    return () => ipcRenderer.removeListener("on-install-failed", listener);
+  },
   onDownloadHalted: (cb: (gameTitle: string) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, gameTitle: string) =>
       cb(gameTitle);
@@ -1240,7 +1323,19 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("getDiskFreeSpace", path),
   checkFolderWritePermission: (path: string) =>
     ipcRenderer.invoke("checkFolderWritePermission", path),
+  getDisplays: () =>
+    ipcRenderer.invoke("getDisplays") as Promise<HydraDisplay[]>,
+  getAudioDevices: () =>
+    ipcRenderer.invoke("getAudioDevices") as Promise<HydraAudioDevice[]>,
   getNetworkInterfaces: () => ipcRenderer.invoke("getNetworkInterfaces"),
+  isProcessElevated: () => ipcRenderer.invoke("isProcessElevated"),
+  relaunchAsAdmin: () => ipcRenderer.invoke("relaunchAsAdmin"),
+  showKeyboardOverlay: () => ipcRenderer.invoke("showKeyboardOverlay"),
+  hideKeyboardOverlay: () => ipcRenderer.invoke("hideKeyboardOverlay"),
+  toggleKeyboardOverlay: () => ipcRenderer.invoke("toggleKeyboardOverlay"),
+  sendTextInput: (text: string) => ipcRenderer.invoke("sendTextInput", text),
+  sendVirtualKeyChord: (virtualKeys: number[]) =>
+    ipcRenderer.invoke("sendVirtualKeyChord", virtualKeys),
 
   /* Cloud save */
   uploadSaveGame: (
@@ -1869,6 +1964,36 @@ contextBridge.exposeInMainWorld("electron", {
       ipcRenderer.removeListener("on-window-maximize-change", listener);
   },
 
+  /* Streaming (Moonlight-compatible sidecar) */
+  submitStreamPairingPin: (pin: string) =>
+    ipcRenderer.invoke("submitStreamPairingPin", pin),
+  onStreamPairingRequest: (cb: () => void) => {
+    const listener = (_event: Electron.IpcRendererEvent) => cb();
+    ipcRenderer.on("on-stream-pairing-requested", listener);
+    return () =>
+      ipcRenderer.removeListener("on-stream-pairing-requested", listener);
+  },
+  onStreamPairingFinished: (cb: (result: { success: boolean }) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      result: { success: boolean }
+    ) => cb(result);
+    ipcRenderer.on("on-stream-pairing-finished", listener);
+    return () =>
+      ipcRenderer.removeListener("on-stream-pairing-finished", listener);
+  },
+  onStreamSessionEvent: (
+    cb: (event: { event: string; state?: string; reason?: string }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      streamEvent: { event: string; state?: string; reason?: string }
+    ) => cb(streamEvent);
+    ipcRenderer.on("on-stream-session-event", listener);
+    return () =>
+      ipcRenderer.removeListener("on-stream-session-event", listener);
+  },
+
   /* Big Picture */
   openBigPictureWindow: () => ipcRenderer.invoke("openBigPictureWindow"),
 
@@ -1959,6 +2084,111 @@ contextBridge.exposeInMainWorld("electron", {
   getAvailableDrives: () => ipcRenderer.invoke("getAvailableDrives"),
   transferGameFiles: (shop: GameShop, objectId: string, destParent: string) =>
     ipcRenderer.invoke("transferGameFiles", shop, objectId, destParent),
+
+  /* Controllers */
+  getControllers: () => ipcRenderer.invoke("getControllers"),
+  getControllerProfiles: () => ipcRenderer.invoke("getControllerProfiles"),
+  saveControllerProfile: (
+    profile: Omit<ControllerProfile, "id" | "builtin"> & { id?: string }
+  ) => ipcRenderer.invoke("saveControllerProfile", profile),
+  deleteControllerProfile: (profileId: string) =>
+    ipcRenderer.invoke("deleteControllerProfile", profileId),
+  assignControllerProfile: (deviceId: string, profileId: string | null) =>
+    ipcRenderer.invoke("assignControllerProfile", deviceId, profileId),
+  setControllerLightbar: (
+    deviceId: string,
+    r: number,
+    g: number,
+    b: number,
+    flashOn?: number,
+    flashOff?: number
+  ) =>
+    ipcRenderer.invoke(
+      "setControllerLightbar",
+      deviceId,
+      r,
+      g,
+      b,
+      flashOn,
+      flashOff
+    ),
+  previewControllerRumble: (
+    deviceId: string,
+    light: number,
+    heavy: number,
+    durationMs?: number
+  ) =>
+    ipcRenderer.invoke(
+      "previewControllerRumble",
+      deviceId,
+      light,
+      heavy,
+      durationMs
+    ),
+  setControllerPlayerLeds: (deviceId: string, count: number) =>
+    ipcRenderer.invoke("setControllerPlayerLeds", deviceId, count),
+  setControllerMicLed: (deviceId: string, mode: number) =>
+    ipcRenderer.invoke("setControllerMicLed", deviceId, mode),
+  setControllerTriggerEffect: (
+    deviceId: string,
+    side: "left" | "right",
+    mode: number,
+    params: number[]
+  ) =>
+    ipcRenderer.invoke(
+      "setControllerTriggerEffect",
+      deviceId,
+      side,
+      mode,
+      params
+    ),
+  identifyController: (deviceId: string) =>
+    ipcRenderer.invoke("identifyController", deviceId),
+  getVirtualOutputSupport: () => ipcRenderer.invoke("getVirtualOutputSupport"),
+  setControllerVirtualOutput: (deviceId: string, enabled: boolean) =>
+    ipcRenderer.invoke("setControllerVirtualOutput", deviceId, enabled),
+  getHidingSupport: () => ipcRenderer.invoke("getHidingSupport"),
+  setControllerHidden: (deviceId: string, enabled: boolean) =>
+    ipcRenderer.invoke("setControllerHidden", deviceId, enabled),
+  restartControllerService: () =>
+    ipcRenderer.invoke("restartControllerService"),
+  setControllerEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke("setControllerEnabled", enabled),
+  beginControllerCapture: (deviceId: string) =>
+    ipcRenderer.invoke("beginControllerCapture", deviceId),
+  endControllerCapture: (deviceId: string) =>
+    ipcRenderer.invoke("endControllerCapture", deviceId),
+  onControllerDevicesChanged: (
+    cb: (devices: ControllerDeviceInfo[]) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      devices: ControllerDeviceInfo[]
+    ) => cb(devices);
+    ipcRenderer.on("on-controller-devices-changed", listener);
+    return () =>
+      ipcRenderer.removeListener("on-controller-devices-changed", listener);
+  },
+  onControllerState: (
+    cb: (payload: { deviceId: string; state: ControllerState }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { deviceId: string; state: ControllerState }
+    ) => cb(payload);
+    ipcRenderer.on("on-controller-state", listener);
+    return () => ipcRenderer.removeListener("on-controller-state", listener);
+  },
+  onControllerCapture: (
+    cb: (payload: { deviceId: string; state: ControllerState }) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: { deviceId: string; state: ControllerState }
+    ) => cb(payload);
+    ipcRenderer.on("on-controller-capture", listener);
+    return () => ipcRenderer.removeListener("on-controller-capture", listener);
+  },
 });
 
 const reportNetworkStatus = (online: boolean, switched = false) => {

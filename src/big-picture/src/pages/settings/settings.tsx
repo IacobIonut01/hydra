@@ -19,6 +19,7 @@ import { AccountPrivacySettingsSection } from "./account-privacy";
 import { BigPictureSettingsSection } from "./big-picture";
 import { CompatibilitySettingsSection } from "./compatibility";
 import { ContentSettingsSection } from "./content";
+import { ControllersSettingsSection } from "./controllers";
 import { DownloadsSettingsSection } from "./downloads";
 import { EmulationSettingsSection } from "./emulation";
 import { GeneralSettingsSection } from "./general";
@@ -32,6 +33,7 @@ import {
   COMPATIBILITY_PROTON_OPTION_AUTO_FOCUS_ID,
   CONTENT_ITEM_FOCUS_IDS,
   BIG_PICTURE_ITEM_FOCUS_IDS,
+  CONTROLLERS_ITEM_FOCUS_IDS,
   DOWNLOADS_BEHAVIOR_ITEM_FOCUS_IDS,
   DOWNLOADS_SOURCES_SECTION_REGION_ID,
   DOWNLOAD_DIRECTORIES_DEFAULT_SELECT_ID,
@@ -48,6 +50,7 @@ const ALL_SETTINGS_TABS = [
   { id: "notifications", label: "Notifications" },
   { id: "content", label: "Content" },
   { id: "big-picture", label: "Big Picture" },
+  { id: "controllers", label: "Controllers" },
   { id: "emulation", label: "Emulation" },
   { id: "integrations", label: "Integrations" },
   { id: "compatibility", label: "Compatibility" },
@@ -95,6 +98,7 @@ const SETTINGS_TAB_CONTENT: Record<
   notifications: NotificationsSettingsSection,
   content: ContentSettingsSection,
   "big-picture": BigPictureSettingsSection,
+  controllers: ControllersSettingsSection,
   emulation: EmulationSettingsSection,
   integrations: IntegrationsSettingsSection,
   compatibility: CompatibilitySettingsSection,
@@ -304,6 +308,11 @@ export default function Settings() {
         return {
           type: "item",
           itemId: BIG_PICTURE_ITEM_FOCUS_IDS.enableVirtualKeyboard,
+        };
+      case "controllers":
+        return {
+          type: "item",
+          itemId: CONTROLLERS_ITEM_FOCUS_IDS.enabled,
         };
       case "emulation":
         return {

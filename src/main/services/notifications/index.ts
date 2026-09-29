@@ -10,7 +10,12 @@ import icon from "@resources/icon.png?asset";
 import { NotificationOptions, toXmlString } from "./xml";
 import { logger } from "../logger";
 import { WindowManager } from "../window-manager";
-import type { Game, UserPreferences, UserProfile } from "@types";
+import type {
+  Game,
+  InstallFailure,
+  UserPreferences,
+  UserProfile,
+} from "@types";
 import { db, levelKeys, themesSublevel } from "@main/level";
 import { restartAndInstallUpdate } from "@main/events/autoupdater/restart-and-install-update";
 import { SystemPath } from "../system-path";
@@ -263,8 +268,8 @@ export const publishFriendStartedPlayingGameNotification = async (
 };
 
 export const publishCombinedNewAchievementNotification = async (
-  achievementCount,
-  gameCount
+  achievementCount: number,
+  gameCount: number
 ) => {
   const options: NotificationOptions = {
     title: t("achievement_unlocked", { ns: "achievement" }),
@@ -306,6 +311,64 @@ export const publishExtractionCompleteNotification = async (game: Game) => {
   // Create local notification
   await LocalNotificationManager.createNotification(
     "EXTRACTION_COMPLETE",
+    title,
+    body,
+    {
+      pictureUrl: game.iconUrl,
+      url: `/game/${game.shop}/${game.objectId}`,
+    }
+  );
+};
+
+export const publishInstallCompleteNotification = async (game: Game) => {
+  const title = t("install_complete", { ns: "notifications" });
+  const body = t("game_ready_to_play", {
+    ns: "notifications",
+    title: game.title,
+  });
+
+  new Notification({
+    title,
+    body,
+    icon: trayIcon,
+  }).show();
+
+  // Create local notification
+  await LocalNotificationManager.createNotification(
+    "INSTALL_COMPLETE",
+    title,
+    body,
+    {
+      pictureUrl: game.iconUrl,
+      url: `/game/${game.shop}/${game.objectId}`,
+    }
+  );
+};
+
+export const publishInstallFailedNotification = async (
+  game: Game,
+  failure: InstallFailure
+) => {
+  const title = t("install_failed", { ns: "notifications" });
+  const reasonKey =
+    failure.reason === "insufficient-space"
+      ? "install_failed_no_space"
+      : failure.reason === "needs-interaction"
+        ? "install_failed_needs_interaction"
+        : "install_failed_generic";
+  const body = t(reasonKey, {
+    ns: "notifications",
+    title: game.title,
+  });
+
+  new Notification({
+    title,
+    body,
+    icon: trayIcon,
+  }).show();
+
+  await LocalNotificationManager.createNotification(
+    "INSTALL_FAILED",
     title,
     body,
     {

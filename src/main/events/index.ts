@@ -17,6 +17,7 @@ import "./connectivity";
 import "./download-sources";
 import "./friends";
 import "./hardware";
+import "./keyboard-overlay";
 import "./library";
 import "./leveldb";
 import "./main-window-controls";
@@ -30,6 +31,8 @@ import "./user-preferences";
 import "./library/transfer-game-files";
 import "./emulators";
 import "./retroarch";
+import "./streaming";
+import "./controller";
 
 ipcMain.handle("ping", () => "pong");
 ipcMain.handle("getVersion", () => appVersion);

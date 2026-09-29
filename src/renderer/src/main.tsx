@@ -53,6 +53,8 @@ import BigPictureSettings from "../../big-picture/src/pages/settings/settings";
 import BigPictureLibrary from "../../big-picture/src/pages/library/page";
 import BigPictureGame from "../../big-picture/src/pages/game/game";
 import BigPictureGameAchievements from "../../big-picture/src/pages/game-achievements/game-achievements";
+import BigPictureGameLaunching from "../../big-picture/src/pages/game-launching/game-launching";
+import BigPictureKeyboardOverlay from "../../big-picture/src/pages/keyboard-overlay/keyboard-overlay";
 import BigPictureProfile from "../../big-picture/src/pages/profile/profile";
 
 console.log = logger.log;
@@ -183,6 +185,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
                   <Route
                     path="game/:shop/:objectId/achievements"
                     element={<BigPictureGameAchievements />}
+                  />
+                  <Route
+                    path="launching/:shop/:objectId"
+                    element={<BigPictureGameLaunching />}
+                  />
+                  <Route
+                    path="keyboard-overlay"
+                    element={<BigPictureKeyboardOverlay />}
                   />
                 </Route>
               </Routes>

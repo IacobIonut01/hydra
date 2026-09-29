@@ -1,7 +1,7 @@
 import { WindowManager } from "./window-manager";
 import { updateGameExecutablePath } from "@main/helpers/update-executable-path";
 import { createGame, trackGamePlaytime } from "./library-sync";
-import type { Game, UserPreferences } from "@types";
+import type { Game, GameShop, UserPreferences } from "@types";
 import axios from "axios";
 import { db, gamesSublevel, levelKeys } from "@main/level";
 import { CloudSync } from "./cloud-sync";
@@ -14,6 +14,7 @@ import { abortAchievementMetadataExport } from "./achievements/metadata-export";
 import { INTERVALS } from "@main/constants";
 import { Wine } from "./wine";
 import { NativeAddon } from "./native-addon";
+import { syncKeyboardOverlayWatcher } from "./keyboard-overlay-watcher";
 import { emulatorSessions } from "./emulators/emulator-session-tracker";
 import { launchedGamePids } from "./launched-game-pids";
 import {
@@ -57,11 +58,29 @@ import {
   prepareLinuxGameCaptureSession,
   stopLinuxGameCaptureSession,
 } from "./linux-game-capture-session";
+import { clearGameLaunch, markGameRunning } from "./game-launch-state";
 import { updateGameRecord } from "./game-record-updater";
 import { GameExecutables } from "./game-executables";
 
 export { gamesPlaytime };
 export { isGameRunning } from "./game-running-state";
+
+type RunningGamesListener = (
+  games: { shop: GameShop; objectId: string }[]
+) => void;
+
+let runningGamesListener: RunningGamesListener | null = null;
+
+/**
+ * The streaming manager subscribes here rather than importing it directly:
+ * `streaming/index.ts` imports `@main/helpers` and `@main/services`, so a
+ * direct import from this file would close an import cycle.
+ */
+export const setRunningGamesListener = (
+  listener: RunningGamesListener | null
+) => {
+  runningGamesListener = listener;
+};
 
 const runAutomaticCloudSaveOnOpen = async (game: Game) => {
   const mode = await getCloudSaveAutomaticSyncMode(game.objectId, game.shop);
@@ -125,6 +144,64 @@ export const getGamesRunning = () => {
 };
 
 const TICKS_TO_UPDATE_API = (3 * 60 * 1000) / INTERVALS.processWatcher; // 3 minutes
+
+// Watching the spawned pid directly gets the game-close signal out a lot
+// sooner than the next watcher tick; the probe only schedules a scan — the
+// real matcher still decides whether the game actually closed, so wrapper
+// processes that exit early can't trip a false close.
+const LAUNCHED_PID_WATCH_MS = 750;
+const launchedPidTimers = new Map<string, NodeJS.Timeout>();
+
+let processScanInFlight = false;
+let processScanQueued = false;
+
+export const runProcessScan = async (): Promise<void> => {
+  if (processScanInFlight) {
+    processScanQueued = true;
+    return;
+  }
+
+  processScanInFlight = true;
+  try {
+    await watchProcesses();
+  } finally {
+    processScanInFlight = false;
+    if (processScanQueued) {
+      processScanQueued = false;
+      void runProcessScan();
+    }
+  }
+};
+
+const disarmLaunchedPidWatch = (gameKey: string) => {
+  const timer = launchedPidTimers.get(gameKey);
+  if (!timer) return;
+
+  clearInterval(timer);
+  launchedPidTimers.delete(gameKey);
+};
+
+const armLaunchedPidWatch = (gameKey: string) => {
+  const pid = launchedGamePids.get(gameKey);
+  if (!pid || launchedPidTimers.has(gameKey)) return;
+
+  launchedPidTimers.set(
+    gameKey,
+    setInterval(() => {
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") return;
+
+        // Drop the dead pid so a later tick can't rearm this probe — the
+        // matcher can no longer hit on it anyway.
+        launchedGamePids.delete(gameKey);
+        disarmLaunchedPidWatch(gameKey);
+        void runProcessScan();
+      }
+    }, LAUNCHED_PID_WATCH_MS)
+  );
+};
 let currentTick = 1;
 
 const platform = process.platform;
@@ -300,6 +377,25 @@ export const watchProcesses = async () => {
     linuxProcesses.map((process) => [process.pid, process])
   );
 
+  // The open/close decisions below are the only trigger for reporting the
+  // running set: `gamesPlaytime`'s key insertion order is "most recently
+  // opened last", and the streaming host only needs `{shop, objectId}` back.
+  const gameByKey = new Map(
+    games.map((game) => [levelKeys.game(game.shop, game.objectId), game])
+  );
+
+  const notifyRunningGames = () => {
+    if (!runningGamesListener) return;
+
+    const running: { shop: GameShop; objectId: string }[] = [];
+    for (const gameKey of gamesPlaytime.keys()) {
+      const game = gameByKey.get(gameKey);
+      if (game) running.push({ shop: game.shop, objectId: game.objectId });
+    }
+
+    runningGamesListener(running);
+  };
+
   for (const game of games) {
     const gameKey = levelKeys.game(game.shop, game.objectId);
     const executablePath = game.executablePath;
@@ -350,19 +446,28 @@ export const watchProcesses = async () => {
     }
 
     if (matchedPath) {
+      armLaunchedPidWatch(gameKey);
       if (gamesPlaytime.has(gameKey)) {
         onTickGame(game);
       } else {
         await onOpenGame(game, matchedPath);
+        notifyRunningGames();
       }
     } else if (gamesPlaytime.has(gameKey)) {
       onCloseGame(game);
+      notifyRunningGames();
     }
   }
 
   currentTick++;
 
-  WindowManager.sendToAppWindows("on-games-running", getGamesRunning());
+  const gamesRunning = getGamesRunning();
+  if (gamesRunning.length === 0) {
+    WindowManager.hideKeyboardOverlay();
+  }
+  syncKeyboardOverlayWatcher(gamesRunning.length > 0);
+
+  WindowManager.sendToAppWindows("on-games-running", gamesRunning);
 };
 
 async function onOpenGame(game: Game, matchedPath: string) {
@@ -433,6 +538,8 @@ async function onOpenGame(game: Game, matchedPath: string) {
     performanceNow: now,
     matchedPath,
   });
+
+  markGameRunning(gameKey);
 
   // On Linux, keep the launcher visible briefly and let it auto-close itself.
   if (process.platform !== "linux") {
@@ -586,6 +693,8 @@ const onCloseGame = (game: Game) => {
   const gamePlaytime = gamesPlaytime.get(gameKey)!;
   deleteGamePlaytime(gameKey);
   launchedGamePids.delete(gameKey);
+  disarmLaunchedPidWatch(gameKey);
+  clearGameLaunch(gameKey);
   stopLinuxGameCaptureSession(gameKey);
   PowerSaveBlockerManager.markGameClosed(gameKey);
   abortAchievementMetadataExport(gameKey);

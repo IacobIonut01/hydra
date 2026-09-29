@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { IS_DESKTOP } from "../constants";
 import type {
   GameShop,
@@ -17,6 +18,7 @@ import {
   resolvePreferredGameAssets,
 } from "../helpers";
 import { useBigPictureToast } from "./use-big-picture-toast.hook";
+import { getBigPictureGameLaunchPath } from "../helpers/game";
 import { NavigationAudioService } from "../services";
 import { useBigPictureRunningGame } from "./use-big-picture-running-games.hook";
 import { useUserPreferences } from "./use-user-preferences.hook";
@@ -48,6 +50,7 @@ export function useGameDetails(objectId: string, shop: GameShop) {
   const { i18n } = useTranslation();
   const language = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const { showSuccessToast, showErrorToast } = useBigPictureToast();
+  const navigate = useNavigate();
   const [shopDetails, setShopDetails] = useState<ShopDetailsWithAssets | null>(
     null
   );
@@ -194,10 +197,16 @@ export function useGameDetails(objectId: string, shop: GameShop) {
         refreshGameDetails().catch(() => {});
       });
 
+    const unsubscribeDownloadsUpdated =
+      globalThis.window.electron.onDownloadsUpdated(() => {
+        updateGame().catch(() => {});
+      });
+
     return () => {
       unsubscribeLibraryBatch();
+      unsubscribeDownloadsUpdated();
     };
-  }, [refreshGameDetails]);
+  }, [refreshGameDetails, updateGame]);
 
   const openGame = useCallback(
     async (discPath?: string, force?: boolean) => {
@@ -209,7 +218,8 @@ export function useGameDetails(objectId: string, shop: GameShop) {
           game.shop,
           game.objectId,
           discPath,
-          force
+          force,
+          "big-picture"
         );
         return;
       }
@@ -217,19 +227,30 @@ export function useGameDetails(objectId: string, shop: GameShop) {
       if (!game.executablePath) return;
 
       NavigationAudioService.getInstance().play("launch");
+
+      if (userPreferences?.bigPictureGameModeEnabled) {
+        navigate(getBigPictureGameLaunchPath(game));
+      }
+
       globalThis.window.electron.openGame(
         game.shop,
         game.objectId,
         game.executablePath,
-        game.launchOptions
+        game.launchOptions,
+        "big-picture"
       );
     },
-    [game]
+    [game, navigate, userPreferences]
   );
 
   const closeGame = useCallback(() => {
     if (!game) return;
     globalThis.window.electron.closeGame(game.shop, game.objectId);
+  }, [game]);
+
+  const returnToGame = useCallback(() => {
+    if (!game) return;
+    globalThis.window.electron.focusRunningGame(game.shop, game.objectId);
   }, [game]);
 
   const toggleFavorite = useCallback(async () => {
@@ -301,6 +322,7 @@ export function useGameDetails(objectId: string, shop: GameShop) {
     achievements,
     openGame,
     closeGame,
+    returnToGame,
     toggleFavorite,
     updateGame,
     refreshGameDetails,

@@ -891,6 +891,9 @@ function buildPreviewHeroItemFromListItem(
     canPauseOrResume: true,
     canMoveFromHero: true,
     canPromoteToHero: true,
+    isInstalling: false,
+    installBytesLabel: null,
+    installTargetLabel: null,
     game: item.game,
   };
 }
@@ -936,6 +939,8 @@ export default function Downloads() {
     sendToQueue,
     moveToPaused,
     cancelDownload,
+    installGame,
+    cancelInstall,
     removeDownload,
     moveQueuedDownload,
     setQueuedDownloadPosition,
@@ -1445,6 +1450,7 @@ export default function Downloads() {
 
     const backgroundImageUrl = getDownloadCoverImageUrl(sourceDownload.game);
     const logoImageUrl = getDownloadLogoImageUrl(sourceDownload.game);
+    const isInstalling = activeDownload?.isInstalling ?? false;
 
     return {
       id: sourceDownload.id,
@@ -1464,10 +1470,17 @@ export default function Downloads() {
       progressPanel: {
         title: isHeroOptimisticLoading
           ? "Starting Download"
-          : sourceDownload.pauseOrResumeAction === "resume"
-            ? "Paused Download"
-            : "Download In Progress",
-        progress: isHeroOptimisticLoading ? 0 : (activeDownload?.progress ?? 0),
+          : isInstalling
+            ? "Installing"
+            : sourceDownload.pauseOrResumeAction === "resume"
+              ? "Paused Download"
+              : "Download In Progress",
+        progress: isHeroOptimisticLoading
+          ? 0
+          : isInstalling
+            ? 1
+            : (activeDownload?.progress ?? 0),
+        indeterminate: isInstalling,
         progressLabel: isHeroOptimisticLoading
           ? "0%"
           : (activeDownload?.progressLabel ?? "0%"),
@@ -2113,6 +2126,11 @@ export default function Downloads() {
   const handleHeroCancel = useCallback(async () => {
     if (!heroPauseTargetDownload) return;
 
+    if (heroPauseTargetDownload.game.download?.installing) {
+      await cancelInstall(heroPauseTargetDownload.game);
+      return;
+    }
+
     const nextFocusId = getRemovalFallbackFocusId(
       "hero",
       heroPauseTargetDownload.id
@@ -2123,7 +2141,12 @@ export default function Downloads() {
     if (nextFocusId) {
       setPendingFocusId(nextFocusId);
     }
-  }, [cancelDownload, getRemovalFallbackFocusId, heroPauseTargetDownload]);
+  }, [
+    cancelDownload,
+    cancelInstall,
+    getRemovalFallbackFocusId,
+    heroPauseTargetDownload,
+  ]);
 
   const downloadMenuItems = useMemo<ContextMenuItem[]>(() => {
     if (!menuState.item || !menuState.section) return [];
@@ -2163,6 +2186,27 @@ export default function Downloads() {
     }
 
     return [
+      ...(item.game.download?.installing
+        ? [
+            {
+              id: "cancel-install",
+              label: "Cancel Install",
+              danger: true,
+              disabled: interactionsLocked,
+              onSelect: () => cancelInstall(item.game),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
+      ...(item.game.download?.installFailure
+        ? [
+            {
+              id: "retry-install",
+              label: "Retry Install",
+              disabled: interactionsLocked,
+              onSelect: () => installGame(item.game),
+            } satisfies ContextMenuItem,
+          ]
+        : []),
       ...(item.seedAction
         ? [
             {
@@ -2195,8 +2239,10 @@ export default function Downloads() {
     ];
   }, [
     canPromoteToHero,
+    cancelInstall,
     handleCompletedRemoval,
     handleRemovalCancel,
+    installGame,
     interactionsLocked,
     menuState.item,
     menuState.section,
@@ -2557,6 +2603,9 @@ export default function Downloads() {
             <DownloadsProgressStats
               title={heroPanelState?.progressPanel.title ?? "Waiting Download"}
               progress={heroPanelState?.progressPanel.progress ?? 0}
+              indeterminate={
+                heroPanelState?.progressPanel.indeterminate ?? false
+              }
               progressLabel={
                 heroPanelState?.progressPanel.progressLabel ?? "0%"
               }

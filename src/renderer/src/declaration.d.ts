@@ -1,4 +1,4 @@
-import type { AuthPage } from "@shared";
+import type { AuthPage, Downloader } from "@shared";
 import type {
   AppUpdaterEvent,
   GameShop,
@@ -70,11 +70,16 @@ import type {
   MemcardFormatState,
   MemcardRestoreResult,
   MemcardRestoreTarget,
+  HydraAudioDevice,
+  HydraDisplay,
+  LaunchSource,
   ArtworkAssetType,
   ArtworkKind,
   ArtworkPage,
   GameArtworkSelection,
   GameLauncherStatusPayload,
+  GameLaunchResult,
+  GameLaunchState,
   CloudSaveAutomaticSyncModeChangedEvent,
   CloudSaveAutomaticSyncEvent,
   CloudSaveConflictResolution,
@@ -100,6 +105,12 @@ import type {
   SteamSyncRunStatus,
   SteamConnectErrorCode,
   ExtractionFailure,
+  InstallFailure,
+  ControllerDeviceInfo,
+  ControllerProfile,
+  ControllerState,
+  HidingSupport,
+  VirtualOutputSupport,
 } from "@types";
 import type { AxiosProgressEvent } from "axios";
 
@@ -226,7 +237,7 @@ declare global {
       shop: GameShop,
       objectId: string,
       strategy?: "interruptActive" | "queueIfActive"
-    ) => Promise<void>;
+    ) => Promise<boolean>;
     pauseGameSeed: (shop: GameShop, objectId: string) => Promise<void>;
     resumeGameSeed: (shop: GameShop, objectId: string) => Promise<void>;
     saveGlobalTrackers: (
@@ -266,6 +277,17 @@ declare global {
     onHardDelete: (cb: () => void) => () => Electron.IpcRenderer;
     getTorrentFiles: (
       magnet: string
+    ) => Promise<
+      { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
+    >;
+    getTorBoxFiles: (
+      magnet: string
+    ) => Promise<
+      { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
+    >;
+    getDebridFiles: (
+      magnet: string,
+      provider: Downloader
     ) => Promise<
       { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
     >;
@@ -440,10 +462,18 @@ declare global {
     getLibrary: () => Promise<LibraryGame[]>;
     refreshLibraryAssets: () => Promise<void>;
     openGameInstaller: (shop: GameShop, objectId: string) => Promise<boolean>;
+    installGame: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<{ ok: boolean; result: string }>;
+    cancelGameInstall: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<{ ok: boolean; cancelled: boolean }>;
     getGameInstallerActionType: (
       shop: GameShop,
       objectId: string
-    ) => Promise<"install" | "open-folder">;
+    ) => Promise<"install" | "open-folder" | "installing">;
     openGameInstallerPath: (shop: GameShop, objectId: string) => Promise<void>;
     openGameWinetricks: (shop: GameShop, objectId: string) => Promise<boolean>;
     openGameExecutablePath: (shop: GameShop, objectId: string) => Promise<void>;
@@ -460,13 +490,15 @@ declare global {
       shop: GameShop,
       objectId: string,
       executablePath: string,
-      launchOptions?: string | null
-    ) => Promise<void>;
+      launchOptions?: string | null,
+      launchSource?: LaunchSource
+    ) => Promise<GameLaunchResult>;
     openClassicsGame: (
       shop: GameShop,
       objectId: string,
       discPath?: string,
-      force?: boolean
+      force?: boolean,
+      launchSource?: LaunchSource
     ) => Promise<void>;
     updateClassicsDisc: (
       shop: GameShop,
@@ -481,6 +513,15 @@ declare global {
     ) => Promise<LibraryGame>;
     getEmulatorRomExtensions: (system: EmulatorSystem) => Promise<string[]>;
     closeGame: (shop: GameShop, objectId: string) => Promise<boolean>;
+    cancelGameLaunch: (shop: GameShop, objectId: string) => Promise<void>;
+    getGameLaunchState: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<GameLaunchState | null>;
+    focusRunningGame: (shop: GameShop, objectId: string) => Promise<boolean>;
+    onGameLaunchState: (
+      cb: (state: GameLaunchState) => void
+    ) => () => Electron.IpcRenderer;
     removeGameFromLibrary: (shop: GameShop, objectId: string) => Promise<void>;
     removeGame: (shop: GameShop, objectId: string) => Promise<void>;
     deleteGameFolder: (shop: GameShop, objectId: string) => Promise<unknown>;
@@ -836,6 +877,14 @@ declare global {
     onUserPreferencesUpdated: (
       cb: (preferences: UserPreferences | null) => void
     ) => () => Electron.IpcRenderer;
+    submitStreamPairingPin: (pin: string) => Promise<string>;
+    onStreamPairingRequest: (cb: () => void) => () => Electron.IpcRenderer;
+    onStreamPairingFinished: (
+      cb: (result: { success: boolean }) => void
+    ) => () => Electron.IpcRenderer;
+    onStreamSessionEvent: (
+      cb: (event: { event: string; state?: string; reason?: string }) => void
+    ) => () => Electron.IpcRenderer;
     autoLaunch: (autoLaunchProps: {
       enabled: boolean;
       minimized: boolean;
@@ -885,6 +934,19 @@ declare global {
         failure: ExtractionFailure | null
       ) => void
     ) => () => Electron.IpcRenderer;
+    onInstallProgress: (
+      cb: (shop: GameShop, objectId: string, bytesWritten: number) => void
+    ) => () => Electron.IpcRenderer;
+    onInstallComplete: (
+      cb: (
+        shop: GameShop,
+        objectId: string,
+        installedPath: string | null
+      ) => void
+    ) => () => Electron.IpcRenderer;
+    onInstallFailed: (
+      cb: (shop: GameShop, objectId: string, failure: InstallFailure) => void
+    ) => () => Electron.IpcRenderer;
     onDownloadHalted: (
       cb: (gameTitle: string) => void
     ) => () => Electron.IpcRenderer;
@@ -918,7 +980,16 @@ declare global {
     /* Hardware */
     getDiskFreeSpace: (path: string) => Promise<DiskUsage | null>;
     checkFolderWritePermission: (path: string) => Promise<boolean>;
+    getDisplays: () => Promise<HydraDisplay[]>;
+    getAudioDevices: () => Promise<HydraAudioDevice[]>;
     getNetworkInterfaces: () => Promise<NetworkInterface[]>;
+    isProcessElevated: () => Promise<boolean>;
+    relaunchAsAdmin: () => Promise<boolean>;
+    showKeyboardOverlay: () => Promise<void>;
+    hideKeyboardOverlay: () => Promise<void>;
+    toggleKeyboardOverlay: () => Promise<boolean>;
+    sendTextInput: (text: string) => Promise<void>;
+    sendVirtualKeyChord: (virtualKeys: number[]) => Promise<void>;
 
     /* Cloud save */
     uploadSaveGame: (
@@ -1330,6 +1401,67 @@ declare global {
 
     // Cancel for game transfers
     cancelGameTransfer: (shop: GameShop, objectId: string) => Promise<void>;
+
+    /* Controllers */
+    getControllers: () => Promise<ControllerDeviceInfo[]>;
+    getControllerProfiles: () => Promise<ControllerProfile[]>;
+    saveControllerProfile: (
+      profile: Omit<ControllerProfile, "id" | "builtin"> & { id?: string }
+    ) => Promise<ControllerProfile>;
+    deleteControllerProfile: (profileId: string) => Promise<boolean>;
+    assignControllerProfile: (
+      deviceId: string,
+      profileId: string | null
+    ) => Promise<boolean>;
+    setControllerLightbar: (
+      deviceId: string,
+      r: number,
+      g: number,
+      b: number,
+      flashOn?: number,
+      flashOff?: number
+    ) => Promise<boolean>;
+    previewControllerRumble: (
+      deviceId: string,
+      light: number,
+      heavy: number,
+      durationMs?: number
+    ) => Promise<boolean>;
+    setControllerPlayerLeds: (
+      deviceId: string,
+      count: number
+    ) => Promise<boolean>;
+    setControllerMicLed: (deviceId: string, mode: number) => Promise<boolean>;
+    setControllerTriggerEffect: (
+      deviceId: string,
+      side: "left" | "right",
+      mode: number,
+      params: number[]
+    ) => Promise<boolean>;
+    identifyController: (deviceId: string) => Promise<boolean>;
+    getVirtualOutputSupport: () => Promise<VirtualOutputSupport>;
+    setControllerVirtualOutput: (
+      deviceId: string,
+      enabled: boolean
+    ) => Promise<boolean>;
+    getHidingSupport: () => Promise<HidingSupport>;
+    setControllerHidden: (
+      deviceId: string,
+      enabled: boolean
+    ) => Promise<boolean>;
+    restartControllerService: () => Promise<void>;
+    setControllerEnabled: (enabled: boolean) => Promise<void>;
+    beginControllerCapture: (deviceId: string) => Promise<boolean>;
+    endControllerCapture: (deviceId: string) => Promise<void>;
+    onControllerDevicesChanged: (
+      cb: (devices: ControllerDeviceInfo[]) => void
+    ) => () => void;
+    onControllerState: (
+      cb: (payload: { deviceId: string; state: ControllerState }) => void
+    ) => () => void;
+    onControllerCapture: (
+      cb: (payload: { deviceId: string; state: ControllerState }) => void
+    ) => () => void;
 
     /* Event listeners for transfer progress */
     on: (channel: string, listener: (...args) => void) => void;

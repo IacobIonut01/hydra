@@ -1,0 +1,43 @@
+body.keyboard-overlay-window,
+body.keyboard-overlay-window #root,
+body.keyboard-overlay-window #big-picture {
+  background: transparent;
+}
+
+.keyboard-overlay {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: transparent;
+  overflow: hidden;
+}
+
+.keyboard-overlay__dock {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--spacing-unit) * 2);
+  padding: calc(var(--spacing-unit) * 3) calc(var(--spacing-unit) * 6)
+    calc(var(--spacing-unit) * 4);
+}
+
+.keyboard-overlay__hint {
+  margin: 0;
+  align-self: flex-end;
+  padding: calc(var(--spacing-unit) * 1.5) calc(var(--spacing-unit) * 3);
+  border-radius: calc(var(--spacing-unit) * 2);
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  backdrop-filter: blur(8px);
+}
+
+.keyboard-overlay__dock .virtual-keyboard {
+  width: 100%;
+}

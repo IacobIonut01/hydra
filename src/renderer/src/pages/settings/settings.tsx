@@ -9,6 +9,7 @@ import { Fragment, useMemo } from "react";
 import "./settings.scss";
 import {
   BellIcon,
+  BroadcastIcon,
   CloudIcon,
   DownloadIcon,
   GearIcon,
@@ -25,7 +26,9 @@ import { SettingsContextNotifications } from "./settings-context-notifications";
 import { SettingsContextContentGameplay } from "./settings-context-content-gameplay";
 import { SettingsContextIntegrations } from "./settings-context-integrations";
 import { SettingsContextCompatibility } from "./settings-context-compatibility";
+import { SettingsContextConsoleStreaming } from "./settings-context-console-streaming";
 import { SettingsContextBigPicture } from "./settings-context-big-picture";
+import { SettingsContextControllers } from "./settings-context-controllers";
 import { SettingsContextEmulation } from "./emulation/settings-context-emulation";
 
 export default function Settings() {
@@ -80,9 +83,19 @@ export default function Settings() {
           ]
         : []),
       {
+        id: "console_streaming" as const,
+        label: t("console_streaming"),
+        icon: <BroadcastIcon size={16} />,
+      },
+      {
         id: "big_picture" as const,
         label: t("big_picture"),
         icon: <VideoIcon size={16} />,
+      },
+      {
+        id: "controllers" as const,
+        label: t("controllers"),
+        icon: <Gamepad2 size={16} />,
       },
       {
         id: "emulation" as const,
@@ -132,8 +145,16 @@ export default function Settings() {
               return <SettingsContextCompatibility />;
             }
 
+            if (selectedCategoryId === "console_streaming") {
+              return <SettingsContextConsoleStreaming />;
+            }
+
             if (selectedCategoryId === "big_picture") {
               return <SettingsContextBigPicture />;
+            }
+
+            if (selectedCategoryId === "controllers") {
+              return <SettingsContextControllers />;
             }
 
             if (selectedCategoryId === "emulation") {

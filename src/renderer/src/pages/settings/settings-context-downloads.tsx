@@ -1,7 +1,12 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CheckboxField, SelectField, TextField } from "@renderer/components";
+import {
+  Button,
+  CheckboxField,
+  SelectField,
+  TextField,
+} from "@renderer/components";
 import { settingsContext } from "@renderer/context";
 import { useAppSelector } from "@renderer/hooks";
 import type { NetworkInterface, UserPreferences } from "@types";
@@ -36,6 +41,14 @@ const buildForm = (preferences: UserPreferences | null) => ({
   deleteArchiveFilesAfterExtractionByDefault:
     preferences?.deleteArchiveFilesAfterExtractionByDefault ?? false,
   torrentNetworkInterface: preferences?.torrentNetworkInterface ?? "",
+  autoInstallRepacks: preferences?.autoInstallRepacks ?? true,
+  autoInstallInteractive: preferences?.autoInstallInteractive ?? true,
+  launchAfterInstall: preferences?.launchAfterInstall ?? true,
+  deleteInstallerFilesAfterInstall:
+    preferences?.deleteInstallerFilesAfterInstall ?? false,
+  pauseSeedingWhileInstalling:
+    preferences?.pauseSeedingWhileInstalling ?? false,
+  installPath: preferences?.installPath ?? "",
 });
 
 export function SettingsContextDownloads() {
@@ -143,6 +156,18 @@ export function SettingsContextDownloads() {
     updateUserPreferences({
       maxDownloadSpeedBytesPerSecond: parsedBytesPerSecond,
     });
+  };
+
+  const handleChooseInstallPath = async () => {
+    const { filePaths } = await globalThis.electron.showOpenDialog({
+      defaultPath: form.installPath || undefined,
+      properties: ["openDirectory"],
+    });
+
+    const path = filePaths?.[0];
+    if (!path) return;
+
+    handleChange({ installPath: path });
   };
 
   const handleSpeedUnitChange = () => {
@@ -260,6 +285,79 @@ export function SettingsContextDownloads() {
           />
         )}
       </div>
+
+      {globalThis.electron.platform !== "darwin" && (
+        <div className="settings-context-panel__group">
+          <h3>{t("auto_install")}</h3>
+
+          <CheckboxField
+            label={t("auto_install_repacks")}
+            checked={form.autoInstallRepacks}
+            onChange={() =>
+              handleChange({ autoInstallRepacks: !form.autoInstallRepacks })
+            }
+          />
+
+          {form.autoInstallRepacks && (
+            <>
+              <TextField
+                label={t("auto_install_path")}
+                hint={t("auto_install_path_hint")}
+                value={form.installPath}
+                readOnly
+                disabled
+                rightContent={
+                  <Button theme="outline" onClick={handleChooseInstallPath}>
+                    {t("browse")}
+                  </Button>
+                }
+              />
+
+              <CheckboxField
+                label={t("auto_install_interactive")}
+                checked={form.autoInstallInteractive}
+                onChange={() =>
+                  handleChange({
+                    autoInstallInteractive: !form.autoInstallInteractive,
+                  })
+                }
+              />
+
+              <CheckboxField
+                label={t("launch_after_install")}
+                checked={form.launchAfterInstall}
+                onChange={() =>
+                  handleChange({
+                    launchAfterInstall: !form.launchAfterInstall,
+                  })
+                }
+              />
+
+              <CheckboxField
+                label={t("delete_installer_files_after_install")}
+                checked={form.deleteInstallerFilesAfterInstall}
+                onChange={() =>
+                  handleChange({
+                    deleteInstallerFilesAfterInstall:
+                      !form.deleteInstallerFilesAfterInstall,
+                  })
+                }
+              />
+
+              <CheckboxField
+                label={t("pause_seeding_while_installing")}
+                checked={form.pauseSeedingWhileInstalling}
+                onChange={() =>
+                  handleChange({
+                    pauseSeedingWhileInstalling:
+                      !form.pauseSeedingWhileInstalling,
+                  })
+                }
+              />
+            </>
+          )}
+        </div>
+      )}
 
       <div className="settings-context-panel__group">
         <h3>{t("global_trackers")}</h3>

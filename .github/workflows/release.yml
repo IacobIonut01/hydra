@@ -45,6 +45,7 @@ jobs:
           $image = "$env:ImageOS-$env:ImageVersion"
           "image=$image" >> $env:GITHUB_OUTPUT
           "prefix=v1-vcpkg-$env:RUNNER_OS-$image-$arch-$arch-$platform" >> $env:GITHUB_OUTPUT
+          "binaryCache=$cacheDir" >> $env:GITHUB_OUTPUT
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -59,14 +60,14 @@ jobs:
         id: vcpkg-cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          path: ${{ steps.native-cache.outputs.binaryCache }}
           key: ${{ steps.native-cache.outputs.prefix }}-${{ hashFiles('native/torrent-bridge/**/vcpkg*.json', 'native/torrent-bridge/**/triplets/**') }}
           restore-keys: |
             ${{ steps.native-cache.outputs.prefix }}-
 
       - name: Install Linux native build prerequisites
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip unzip tar autoconf automake libtool
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip unzip tar autoconf automake libtool libudev-dev
 
       - name: Install dependencies
         run: yarn --frozen-lockfile
@@ -76,7 +77,7 @@ jobs:
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          path: ${{ steps.native-cache.outputs.binaryCache }}
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build Linux

@@ -14,7 +14,12 @@ import {
   Sidebar,
 } from "./layout";
 import { IS_DESKTOP } from "./constants";
-import { useBigPictureToast, useNavigation, useUserPreferences } from "./hooks";
+import {
+  useBigPictureToast,
+  useInGameKeyboardChord,
+  useNavigation,
+  useUserPreferences,
+} from "./hooks";
 import {
   HorizontalFocusGroup,
   InputModeProvider,
@@ -27,6 +32,7 @@ import {
   VerticalFocusGroup,
   BigPictureToastHost,
   CloudGiftNotificationModal,
+  StreamPairingModal,
   VirtualKeyboardProvider,
 } from "./components";
 import { getItemFocusTarget } from "./helpers";
@@ -45,7 +51,7 @@ export default function App() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { showErrorToast } = useBigPictureToast();
+  const { showErrorToast, showSuccessToast } = useBigPictureToast();
   const { nodes, regions, setFocusRegion } = useNavigation();
   const userPreferences = useUserPreferences();
   const inputMode = useInputModeStore((state) => state.mode);
@@ -57,6 +63,8 @@ export default function App() {
   const leftSidebarTargetId = activeGameRoute
     ? getBigPictureSidebarLibraryGameFocusId(activeGameRoute)
     : (activeSidebarItemId ?? BIG_PICTURE_SIDEBAR_ITEM_IDS.library);
+  const isKeyboardOverlayRoute = pathname.endsWith("/keyboard-overlay");
+  useInGameKeyboardChord(!isKeyboardOverlayRoute);
   const contentNavigationOverrides: FocusOverrides = {
     left: getItemFocusTarget(leftSidebarTargetId),
   };
@@ -129,11 +137,78 @@ export default function App() {
         );
       });
 
+    const unsubscribeInstallFailed = globalThis.window.electron.onInstallFailed(
+      (_shop, _objectId, failure) => {
+        if (failure?.reason === "needs-interaction") {
+          showErrorToast(
+            t("install_needs_interaction_title", { ns: "downloads" }),
+            {
+              message: t("install_needs_interaction_description", {
+                ns: "downloads",
+              }),
+            }
+          );
+          return;
+        }
+
+        if (failure?.reason === "insufficient-space") {
+          showErrorToast(
+            t("install_insufficient_space_title", { ns: "downloads" }),
+            {
+              message: t("install_insufficient_space_description", {
+                ns: "downloads",
+              }),
+            }
+          );
+          return;
+        }
+
+        if (failure?.reason === "no-installer") {
+          showErrorToast(t("install_no_installer_title", { ns: "downloads" }), {
+            message: t("install_no_installer_description", {
+              ns: "downloads",
+            }),
+          });
+          return;
+        }
+
+        if (failure?.reason === "aborted") {
+          showErrorToast(t("install_aborted_title", { ns: "downloads" }), {
+            message: t("install_aborted_description", { ns: "downloads" }),
+          });
+          return;
+        }
+
+        showErrorToast(t("install_failed_title", { ns: "downloads" }), {
+          message: t("install_failed_description", { ns: "downloads" }),
+        });
+      }
+    );
+
+    const unsubscribeInstallComplete =
+      globalThis.window.electron.onInstallComplete((shop, objectId) => {
+        void globalThis.window.electron.getLibrary().then((library) => {
+          const installedGame = library.find(
+            (libraryGame) =>
+              libraryGame.shop === shop && libraryGame.objectId === objectId
+          );
+
+          showSuccessToast(t("install_complete_title", { ns: "downloads" }), {
+            message: t("install_complete_description", {
+              ns: "downloads",
+              title: installedGame?.title ?? "",
+            }),
+          });
+        });
+      });
+
     return () => {
       unsubscribeExtractionFailed();
       unsubscribeExecutableNotFound();
+      unsubscribeInstallFailed();
+      unsubscribeInstallComplete();
     };
-  }, [showErrorToast, t]);
+  }, [showErrorToast, showSuccessToast, t]);
 
   useEffect(() => {
     setPendingRouteFocusPathname(pathname);
@@ -171,6 +246,21 @@ export default function App() {
         inputMode === "gamepad"
     );
   }, [userPreferences?.bigPictureSoundsEnabled, inputMode]);
+
+  if (isKeyboardOverlayRoute) {
+    return (
+      <Fragment>
+        <NavigationStateBridge />
+        <NavigationInputProvider>
+          <div id="big-picture">
+            <BigPictureI18nBridge />
+            <Outlet />
+            <InputModeProvider />
+          </div>
+        </NavigationInputProvider>
+      </Fragment>
+    );
+  }
 
   return (
     <Fragment>
@@ -219,6 +309,7 @@ export default function App() {
           <NavigationDiagnostics />
           <BigPictureToastHost />
           <CloudGiftNotificationModal />
+          <StreamPairingModal />
         </div>
       </NavigationInputProvider>
     </Fragment>

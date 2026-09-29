@@ -21,6 +21,7 @@ import {
   useDate,
   useFormat,
   useNavigation,
+  useUserPreferences,
 } from "../../hooks";
 import { BIG_PICTURE_SIDEBAR_ITEM_IDS } from "../../layout";
 import type { FocusOverrides } from "../../services";
@@ -30,6 +31,8 @@ import {
   DOWNLOADS_SOURCES_EMPTY_STATE_ID,
   DOWNLOADS_SOURCES_SECTION_REGION_ID,
   DOWNLOADS_SOURCES_SYNC_BUTTON_ID,
+  getDownloadsSourceAutoInstallFocusId,
+  getLastAutoInstallItemFocusId,
   getLastDownloadsBehaviorItemFocusId,
   getDownloadsSourceRemoveButtonFocusId,
 } from "./settings-navigation";
@@ -120,32 +123,49 @@ export function DownloadsSourcesSection({
 
   const isBusy = isSyncing || isRemoving;
   const hasSources = downloadSources.length > 0;
+  const userPreferences = useUserPreferences();
   const isWindows = globalThis.window.electron.platform === "win32";
   const isLinux = globalThis.window.electron.platform === "linux";
+  const supportsAutoInstall = globalThis.window.electron.platform !== "darwin";
+  const autoInstallEnabled = userPreferences?.autoInstallRepacks ?? true;
+  const excludedSourceIds = useMemo(
+    () => userPreferences?.autoInstallExcludedSourceIds ?? [],
+    [userPreferences]
+  );
   const firstRemoveButtonFocusId = downloadSources[0]
     ? getDownloadsSourceRemoveButtonFocusId(downloadSources[0].id)
     : null;
-  const lastBehaviorFocusId = getLastDownloadsBehaviorItemFocusId(
-    isWindows || isLinux
-  );
+  const firstAutoInstallFocusId =
+    supportsAutoInstall && downloadSources[0]
+      ? getDownloadsSourceAutoInstallFocusId(downloadSources[0].id)
+      : null;
+  const previousSectionLastFocusId = supportsAutoInstall
+    ? getLastAutoInstallItemFocusId(autoInstallEnabled)
+    : getLastDownloadsBehaviorItemFocusId(isWindows || isLinux);
 
-  const actionNavigationOverrides: FocusOverrides = useMemo(
-    () => ({
+  const actionNavigationOverrides: FocusOverrides = useMemo(() => {
+    const firstCardFocusId =
+      firstAutoInstallFocusId ?? firstRemoveButtonFocusId;
+
+    return {
       up: {
         type: "item",
-        itemId: lastBehaviorFocusId,
+        itemId: previousSectionLastFocusId,
       },
-      down: firstRemoveButtonFocusId
+      down: firstCardFocusId
         ? {
             type: "item",
-            itemId: firstRemoveButtonFocusId,
+            itemId: firstCardFocusId,
           }
         : {
             type: "block",
           },
-    }),
-    [firstRemoveButtonFocusId, lastBehaviorFocusId]
-  );
+    };
+  }, [
+    firstAutoInstallFocusId,
+    firstRemoveButtonFocusId,
+    previousSectionLastFocusId,
+  ]);
 
   const syncButtonNavigationOverrides: FocusOverrides = useMemo(
     () => ({
@@ -205,6 +225,58 @@ export function DownloadsSourcesSection({
               : {
                   type: "block",
                 },
+            left: supportsAutoInstall
+              ? {
+                  type: "item",
+                  itemId: getDownloadsSourceAutoInstallFocusId(
+                    downloadSource.id
+                  ),
+                }
+              : { type: "block" },
+            right: { type: "block" },
+          } satisfies FocusOverrides,
+        ];
+      })
+    );
+  }, [downloadSources, supportsAutoInstall]);
+
+  const autoInstallNavigationOverridesBySourceId = useMemo<
+    Record<string, FocusOverrides>
+  >(() => {
+    return Object.fromEntries(
+      downloadSources.map((downloadSource, index) => {
+        const previousSource = downloadSources[index - 1];
+        const nextSource = downloadSources[index + 1];
+
+        return [
+          downloadSource.id,
+          {
+            up: previousSource
+              ? {
+                  type: "item",
+                  itemId: getDownloadsSourceAutoInstallFocusId(
+                    previousSource.id
+                  ),
+                }
+              : {
+                  type: "region",
+                  regionId: DOWNLOADS_SOURCES_ACTIONS_REGION_ID,
+                  entryDirection: "up",
+                  preferRememberedFocus: true,
+                },
+            down: nextSource
+              ? {
+                  type: "item",
+                  itemId: getDownloadsSourceAutoInstallFocusId(nextSource.id),
+                }
+              : {
+                  type: "block",
+                },
+            left: { type: "block" },
+            right: {
+              type: "item",
+              itemId: getDownloadsSourceRemoveButtonFocusId(downloadSource.id),
+            },
           } satisfies FocusOverrides,
         ];
       })
@@ -284,7 +356,7 @@ export function DownloadsSourcesSection({
           );
 
           if (!regionFocusId) {
-            setFocus(lastBehaviorFocusId);
+            setFocus(previousSectionLastFocusId);
           }
         });
       } catch {
@@ -299,7 +371,7 @@ export function DownloadsSourcesSection({
     [
       downloadSources,
       formatNumber,
-      lastBehaviorFocusId,
+      previousSectionLastFocusId,
       refreshDownloadSources,
       setFocus,
       setFocusRegion,
@@ -307,6 +379,21 @@ export function DownloadsSourcesSection({
       showSuccessToast,
       t,
     ]
+  );
+
+  const handleAutoInstallChange = useCallback(
+    async (downloadSourceId: string, enabled: boolean) => {
+      const nextExcludedSourceIds = enabled
+        ? excludedSourceIds.filter(
+            (excludedSourceId) => excludedSourceId !== downloadSourceId
+          )
+        : [...excludedSourceIds, downloadSourceId];
+
+      await globalThis.window.electron.updateUserPreferences({
+        autoInstallExcludedSourceIds: nextExcludedSourceIds,
+      });
+    },
+    [excludedSourceIds]
   );
 
   const handleDeleteAllSources = useCallback(async () => {
@@ -429,6 +516,24 @@ export function DownloadsSourcesSection({
                     onRemove={() => {
                       void handleRemoveSource(downloadSource.id);
                     }}
+                    autoInstallEnabled={
+                      !excludedSourceIds.includes(downloadSource.id)
+                    }
+                    autoInstallFocusId={
+                      supportsAutoInstall
+                        ? getDownloadsSourceAutoInstallFocusId(
+                            downloadSource.id
+                          )
+                        : undefined
+                    }
+                    autoInstallNavigationOverrides={
+                      autoInstallNavigationOverridesBySourceId[
+                        downloadSource.id
+                      ]
+                    }
+                    onAutoInstallChange={(enabled) => {
+                      void handleAutoInstallChange(downloadSource.id, enabled);
+                    }}
                   />
                 );
               })}
@@ -440,7 +545,7 @@ export function DownloadsSourcesSection({
               navigationOverrides={{
                 up: {
                   type: "item",
-                  itemId: lastBehaviorFocusId,
+                  itemId: previousSectionLastFocusId,
                 },
                 down: {
                   type: "block",

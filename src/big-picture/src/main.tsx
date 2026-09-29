@@ -7,7 +7,9 @@ import ComponentLab from "./pages/component-lab/component-lab";
 import Downloads from "./pages/downloads/downloads";
 import Game from "./pages/game/game";
 import GameAchievements from "./pages/game-achievements/game-achievements";
+import GameLaunching from "./pages/game-launching/game-launching";
 import Home from "./pages/home/home";
+import KeyboardOverlay from "./pages/keyboard-overlay/keyboard-overlay";
 import LibraryPage from "./pages/library/page";
 import Profile from "./pages/profile/profile";
 import Settings from "./pages/settings/settings";
@@ -38,6 +40,8 @@ ReactDOM.createRoot(rootElement).render(
             path="game/:shop/:objectId/achievements"
             element={<GameAchievements />}
           />
+          <Route path="launching/:shop/:objectId" element={<GameLaunching />} />
+          <Route path="keyboard-overlay" element={<KeyboardOverlay />} />
         </Route>
       </Routes>
     </BrowserRouter>

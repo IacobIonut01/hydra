@@ -1,24 +1,31 @@
 import {
+  ClockIcon,
   DownloadSimpleIcon,
   GearIcon,
   HeartIcon,
+  MonitorPlayIcon,
+  PackageIcon,
+  PauseIcon,
   PlayIcon,
   PlusCircleIcon,
+  WarningIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import type { LibraryGame, ShopDetailsWithAssets } from "@types";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FocusOverrides,
-  FocusOverrideTarget,
-} from "src/big-picture/src/services/navigation.service";
+import type { FocusOverrides, FocusOverrideTarget } from "../../../../services";
 import {
   animateNavigationScrollForElement,
+  getHeroDownloadDisplay,
   resolvePreferredGameAssets,
+  type HeroDownloadDisplayKind,
 } from "../../../../helpers";
 import { useDominantColor } from "../../../../hooks";
-import { useNavigationStore } from "../../../../stores";
+import {
+  useBigPictureDownloadsStore,
+  useNavigationStore,
+} from "../../../../stores";
 import { BIG_PICTURE_SIDEBAR_ITEM_IDS } from "../../../../layout";
 import {
   AnimatedHeroImage,
@@ -29,6 +36,7 @@ import {
 } from "../../../common";
 import {
   GAME_HERO_ACTIONS_REGION_ID,
+  GAME_HERO_CLOSE_GAME_ID,
   GAME_HERO_DOWNLOAD_OPTIONS_ID,
   GAME_HERO_OPEN_CLOUD_SAVE_ID,
   GAME_HERO_OPEN_SETTINGS_ID,
@@ -47,10 +55,13 @@ export interface HeroProps {
   toggleFavorite: () => void;
   onPlay: () => void;
   onDownload: () => void;
+  onInstall: () => void;
+  onShowDownloadProgress: () => void;
   onAddToLibrary: () => void;
   onOpenDownloadOptions: () => void;
   onOpenSettings: () => void;
   onClose: () => void;
+  onReturnToGame: () => void;
   isAddingToLibrary: boolean;
   canAddToLibrary: boolean;
   downNavigationTarget?: FocusOverrideTarget;
@@ -80,6 +91,22 @@ function getSettingsLeftTargetId(
   return BIG_PICTURE_SIDEBAR_ITEM_IDS.home;
 }
 
+function getDownloadDisplayIcon(kind: HeroDownloadDisplayKind) {
+  switch (kind) {
+    case "extracting":
+    case "installing":
+      return <PackageIcon size={24} />;
+    case "queued":
+      return <ClockIcon size={24} />;
+    case "paused":
+      return <PauseIcon size={24} />;
+    case "error":
+      return <WarningIcon size={24} />;
+    default:
+      return <DownloadSimpleIcon size={24} />;
+  }
+}
+
 export function Hero({
   shopDetails,
   game,
@@ -88,10 +115,13 @@ export function Hero({
   toggleFavorite,
   onPlay,
   onDownload,
+  onInstall,
+  onShowDownloadProgress,
   onAddToLibrary,
   onOpenDownloadOptions,
   onOpenSettings,
   onClose,
+  onReturnToGame,
   isAddingToLibrary,
   canAddToLibrary,
   downNavigationTarget,
@@ -100,6 +130,17 @@ export function Hero({
   const { t } = useTranslation("game_details");
   const heroRef = useRef<HTMLElement | null>(null);
   const currentFocusId = useNavigationStore((state) => state.currentFocusId);
+  const lastDownloadPacket = useBigPictureDownloadsStore(
+    (state) => state.lastPacket
+  );
+  const extractionProgressByGameId = useBigPictureDownloadsStore(
+    (state) => state.extractionProgressByGameId
+  );
+  const downloadDisplay = getHeroDownloadDisplay(
+    game,
+    lastDownloadPacket,
+    extractionProgressByGameId
+  );
 
   // The hero is the top of the page, so focusing any of its actions should show
   // it whole rather than stopping wherever it first becomes visible.
@@ -235,13 +276,25 @@ export function Hero({
               focusId={GAME_HERO_PRIMARY_ACTION_ID}
               focusNavigationOverrides={primaryActionNavigationOverrides}
               variant="primary"
+              color={dominantColor ?? undefined}
+              iconPosition="right"
+              icon={<MonitorPlayIcon size={24} weight="fill" />}
+              onClick={onReturnToGame}
+            >
+              Return to game
+            </Button>
+          ),
+          downloadOptionsButton: (
+            <Button
+              focusId={GAME_HERO_CLOSE_GAME_ID}
+              focusNavigationOverrides={downloadOptionsNavigationOverrides}
+              variant="secondary"
               icon={<XCircleIcon size={24} />}
               onClick={onClose}
             >
               Close Game
             </Button>
           ),
-          downloadOptionsButton: null,
           settingsButton: shouldShowFavoriteButton ? (
             <Button
               focusId={GAME_HERO_OPEN_SETTINGS_ID}
@@ -285,6 +338,105 @@ export function Hero({
               {t("options")}
             </Button>
           ) : null,
+        };
+      }
+
+      if (game?.download?.installing) {
+        return {
+          primaryActionButton: (
+            <Button
+              focusId={GAME_HERO_PRIMARY_ACTION_ID}
+              focusNavigationOverrides={primaryActionNavigationOverrides}
+              variant="primary"
+              color={dominantColor ?? undefined}
+              icon={<PackageIcon size={24} />}
+              disabled
+            >
+              Installing…
+            </Button>
+          ),
+          downloadOptionsButton: null,
+          settingsButton: (
+            <Button
+              focusId={GAME_HERO_OPEN_SETTINGS_ID}
+              focusNavigationOverrides={settingsNavigationOverrides}
+              variant="secondary"
+              aria-label={t("options")}
+              icon={<GearIcon size={24} />}
+              onClick={onOpenSettings}
+            >
+              {t("options")}
+            </Button>
+          ),
+        };
+      }
+
+      const hasUninstalledDownload =
+        Boolean(game?.download) &&
+        !game?.executablePath &&
+        !isPlayableClassicsGame &&
+        (Boolean(game?.download?.installFailure) ||
+          game?.download?.status === "complete" ||
+          game?.download?.status === "seeding");
+
+      if (game && hasUninstalledDownload) {
+        return {
+          primaryActionButton: (
+            <Button
+              focusId={GAME_HERO_PRIMARY_ACTION_ID}
+              focusNavigationOverrides={primaryActionNavigationOverrides}
+              variant="primary"
+              color={dominantColor ?? undefined}
+              icon={<PackageIcon size={24} />}
+              onClick={onInstall}
+            >
+              Install
+            </Button>
+          ),
+          downloadOptionsButton: null,
+          settingsButton: (
+            <Button
+              focusId={GAME_HERO_OPEN_SETTINGS_ID}
+              focusNavigationOverrides={settingsNavigationOverrides}
+              variant="secondary"
+              aria-label={t("options")}
+              icon={<GearIcon size={24} />}
+              onClick={onOpenSettings}
+            >
+              {t("options")}
+            </Button>
+          ),
+        };
+      }
+
+      if (game && downloadDisplay) {
+        return {
+          primaryActionButton: (
+            <Button
+              focusId={GAME_HERO_PRIMARY_ACTION_ID}
+              focusNavigationOverrides={primaryActionNavigationOverrides}
+              variant="primary"
+              color={dominantColor ?? undefined}
+              icon={getDownloadDisplayIcon(downloadDisplay.kind)}
+              progress={downloadDisplay.progress}
+              onClick={onShowDownloadProgress}
+            >
+              {downloadDisplay.label}
+            </Button>
+          ),
+          downloadOptionsButton: null,
+          settingsButton: (
+            <Button
+              focusId={GAME_HERO_OPEN_SETTINGS_ID}
+              focusNavigationOverrides={settingsNavigationOverrides}
+              variant="secondary"
+              aria-label={t("options")}
+              icon={<GearIcon size={24} />}
+              onClick={onOpenSettings}
+            >
+              {t("options")}
+            </Button>
+          ),
         };
       }
 
@@ -356,6 +508,7 @@ export function Hero({
     }, [
       canAddToLibrary,
       dominantColor,
+      downloadDisplay,
       game,
       hasPrimaryAction,
       heroDownNavigationTarget,
@@ -365,9 +518,12 @@ export function Hero({
       onAddToLibrary,
       onClose,
       onDownload,
+      onInstall,
       onOpenDownloadOptions,
       onOpenSettings,
       onPlay,
+      onReturnToGame,
+      onShowDownloadProgress,
       shouldShowCatalogActions,
       shouldShowCloudSaveButton,
       shouldShowFavoriteButton,
@@ -404,6 +560,12 @@ export function Hero({
       })}
 
       <div className="game-page__hero-overlay">
+        {game?.shop === "custom" && (
+          <span className="game-page__hero-custom-badge">
+            {t("custom_game_badge")}
+          </span>
+        )}
+
         {preferredAssets.logoSrc ? (
           <img
             src={preferredAssets.logoSrc}

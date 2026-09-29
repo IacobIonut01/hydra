@@ -5,6 +5,7 @@ import {
   net,
   powerMonitor,
   protocol,
+  screen,
 } from "electron";
 import updater from "electron-updater";
 import i18n from "i18next";
@@ -23,6 +24,9 @@ import {
 } from "@main/services";
 import resources from "@locales";
 import { TorrentService } from "./services/torrent-service";
+import { DownloadManager } from "./services/download/download-manager";
+import { StreamSidecar } from "./services/stream-sidecar";
+import { StreamingManager } from "./services/streaming";
 import { db, gamesSublevel, levelKeys } from "./level";
 import { GameShop, UserPreferences } from "@types";
 import { launchGame, openClassicsGame } from "./helpers";
@@ -189,6 +193,18 @@ const initializeApp = async () => {
     });
   });
 
+  // UAC consent (elevated installer launches) and session unlock both go
+  // through a display transition that silently drops the Big Picture zoom
+  // factor -- re-apply the saved preference when the session comes back.
+  const reapplyBigPictureUiScale = () => {
+    void WindowManager.reapplyBigPictureUiScalePreference().catch((error) =>
+      logger.warn("Failed to reapply Big Picture UI scale", error)
+    );
+  };
+  screen.on("display-metrics-changed", reapplyBigPictureUiScale);
+  powerMonitor.on("unlock-screen", reapplyBigPictureUiScale);
+  powerMonitor.on("resume", reapplyBigPictureUiScale);
+
   const language = await db
     .get<string, string>(levelKeys.language, {
       valueEncoding: "utf8",
@@ -209,6 +225,10 @@ const initializeApp = async () => {
   }
 
   WindowManager.createSystemTray(language || "en");
+
+  StreamingManager.start().catch((error) => {
+    logger.error("Failed to start streaming manager", error);
+  });
 
   if (deepLinkArg) {
     handleDeepLinkPath(deepLinkArg);
@@ -393,6 +413,12 @@ app.on("before-quit", async (e) => {
     if (isAppClosing) return;
     isAppClosing = true;
     PowerSaveBlockerManager.reset();
+    try {
+      await DownloadManager.pauseDownload();
+    } catch (error) {
+      logger.error("Could not save active download before quitting", error);
+    }
+    StreamSidecar.kill();
     const results = await Promise.allSettled([
       Lock.releaseLock(),
       TorrentService.shutdown(),

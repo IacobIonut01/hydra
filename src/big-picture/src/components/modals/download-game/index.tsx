@@ -52,6 +52,7 @@ import {
   Checkbox,
   DropdownSelect,
   EmptyState,
+  FocusItem,
   GridFocusGroup,
   HorizontalFocusGroup,
   Input,
@@ -111,9 +112,13 @@ interface DownloadGameOptionsProps {
   selectedDownloadPath: string;
   automaticExtractionEnabled: boolean;
   deleteArchiveFilesAfterExtraction: boolean;
+  automaticInstallEnabled: boolean;
+  installPath: string;
   onSelectDownloadPath: (path: string) => void;
   onAutomaticExtractionChange: (checked: boolean) => void;
   onDeleteArchiveFilesAfterExtractionChange: (checked: boolean) => void;
+  onAutomaticInstallChange: (checked: boolean) => void;
+  onInstallPathChange: (path: string) => void;
 }
 
 interface DownloadDirectorySuggestion {
@@ -168,6 +173,9 @@ const DOWNLOAD_GAME_AUTOMATIC_EXTRACT_CHECKBOX_ID =
   "download-game-modal-automatic-extract";
 const DOWNLOAD_GAME_DELETE_ARCHIVE_CHECKBOX_ID =
   "download-game-modal-delete-archive";
+const DOWNLOAD_GAME_AUTO_INSTALL_CHECKBOX_ID =
+  "download-game-modal-auto-install";
+const DOWNLOAD_GAME_INSTALL_DIR_BUTTON_ID = "download-game-modal-install-dir";
 const DOWNLOAD_GAME_EMPTY_STATE_SETTINGS_BUTTON_ID =
   "download-game-modal-empty-state-settings";
 
@@ -551,6 +559,8 @@ function DownloadGameModalSession({
     deleteArchiveFilesAfterExtraction,
     setDeleteArchiveFilesAfterExtraction,
   ] = useState(false);
+  const [automaticInstallEnabled, setAutomaticInstallEnabled] = useState(true);
+  const [installPath, setInstallPath] = useState("");
   const [isPreparingOptions, setIsPreparingOptions] = useState(false);
   const stepFrameRef = useRef<HTMLDivElement | null>(null);
   const activeStepRef = useRef<HTMLDivElement | null>(null);
@@ -559,6 +569,8 @@ function DownloadGameModalSession({
   const downloadPathTouchedRef = useRef(false);
   const automaticExtractionTouchedRef = useRef(false);
   const deleteArchiveTouchedRef = useRef(false);
+  const automaticInstallTouchedRef = useRef(false);
+  const installPathTouchedRef = useRef(false);
   const {
     downloadOptions,
     localDownloadSources,
@@ -619,10 +631,14 @@ function DownloadGameModalSession({
       downloadPathTouchedRef.current = false;
       automaticExtractionTouchedRef.current = false;
       deleteArchiveTouchedRef.current = false;
+      automaticInstallTouchedRef.current = false;
+      installPathTouchedRef.current = false;
       setDownloadDirectorySuggestions([]);
       setSelectedDownloadPath("");
       setAutomaticExtractionEnabled(true);
       setDeleteArchiveFilesAfterExtraction(false);
+      setAutomaticInstallEnabled(true);
+      setInstallPath("");
       setPendingSelectedOption(null);
       setIsPreparingOptions(false);
       if (resetStepFrameHeightTimeoutRef.current !== null) {
@@ -681,6 +697,14 @@ function DownloadGameModalSession({
         setDeleteArchiveFilesAfterExtraction(
           userPreferences?.deleteArchiveFilesAfterExtractionByDefault ?? false
         );
+      }
+
+      if (!automaticInstallTouchedRef.current) {
+        setAutomaticInstallEnabled(userPreferences?.autoInstallRepacks ?? true);
+      }
+
+      if (!installPathTouchedRef.current) {
+        setInstallPath(userPreferences?.installPath ?? "");
       }
 
       setIsPreparingOptions(false);
@@ -743,6 +767,16 @@ function DownloadGameModalSession({
     },
     []
   );
+
+  const handleAutomaticInstallChange = useCallback((checked: boolean) => {
+    automaticInstallTouchedRef.current = true;
+    setAutomaticInstallEnabled(checked);
+  }, []);
+
+  const handleInstallPathChange = useCallback((path: string) => {
+    installPathTouchedRef.current = true;
+    setInstallPath(path);
+  }, []);
 
   const handleToggleSource = useCallback((sourceId: string) => {
     setSelectedSources((previousSources) =>
@@ -808,21 +842,29 @@ function DownloadGameModalSession({
         selectedDownloadPath={selectedDownloadPath}
         automaticExtractionEnabled={automaticExtractionEnabled}
         deleteArchiveFilesAfterExtraction={deleteArchiveFilesAfterExtraction}
+        automaticInstallEnabled={automaticInstallEnabled}
+        installPath={installPath}
         onSelectDownloadPath={handleSelectDownloadPath}
         onAutomaticExtractionChange={handleAutomaticExtractionChange}
         onDeleteArchiveFilesAfterExtractionChange={
           handleDeleteArchiveFilesAfterExtractionChange
         }
+        onAutomaticInstallChange={handleAutomaticInstallChange}
+        onInstallPathChange={handleInstallPathChange}
       />
     ),
     [
       automaticExtractionEnabled,
+      automaticInstallEnabled,
       deleteArchiveFilesAfterExtraction,
       downloadDirectorySuggestions,
       game,
       handleAutomaticExtractionChange,
+      handleAutomaticInstallChange,
       handleDeleteArchiveFilesAfterExtractionChange,
+      handleInstallPathChange,
       handleSelectDownloadPath,
+      installPath,
       onClose,
       selectedDownloadPath,
       visible,
@@ -1349,9 +1391,13 @@ function DownloadGameOptions({
   selectedDownloadPath,
   automaticExtractionEnabled,
   deleteArchiveFilesAfterExtraction,
+  automaticInstallEnabled,
+  installPath,
   onSelectDownloadPath,
   onAutomaticExtractionChange,
   onDeleteArchiveFilesAfterExtractionChange,
+  onAutomaticInstallChange,
+  onInstallPathChange,
 }: Readonly<DownloadGameOptionsProps>) {
   const { t } = useTranslation("game_details");
   const { showErrorToast } = useBigPictureToast();
@@ -1546,6 +1592,20 @@ function DownloadGameOptions({
     resolvedDownloader == null ||
     !selectedUri;
 
+  const handleChooseInstallPath = async () => {
+    if (isOptionsInteractionLocked) return;
+
+    const result = await globalThis.window.electron.showOpenDialog({
+      defaultPath: installPath || undefined,
+      properties: ["openDirectory"],
+    });
+    const selectedPath = result.filePaths[0];
+
+    if (result.canceled || !selectedPath) return;
+
+    onInstallPathChange(selectedPath);
+  };
+
   const handleStartDownload = async () => {
     if (
       !IS_DESKTOP ||
@@ -1565,6 +1625,11 @@ function DownloadGameOptions({
       downloader: resolvedDownloader,
       automaticallyExtract: automaticExtractionEnabled,
       automaticallyDeleteArchiveFiles: deleteArchiveFilesAfterExtraction,
+      automaticallyInstall: automaticInstallEnabled,
+      installPath: installPath || null,
+      downloadSourceId: option.downloadSourceId,
+      downloadSourceName: option.downloadSourceName,
+      repackTitle: option.title,
       fileSize: option.fileSize,
     } as const;
 
@@ -1739,6 +1804,47 @@ function DownloadGameOptions({
             disabled={isOptionsInteractionLocked}
             onChange={onDeleteArchiveFilesAfterExtractionChange}
           />
+
+          {globalThis.window.electron.platform !== "darwin" && (
+            <>
+              <Checkbox
+                block
+                focusId={DOWNLOAD_GAME_AUTO_INSTALL_CHECKBOX_ID}
+                label="Install automatically after extraction"
+                checked={automaticInstallEnabled}
+                disabled={isOptionsInteractionLocked}
+                onChange={onAutomaticInstallChange}
+              />
+
+              {automaticInstallEnabled && (
+                <div className="download-game-modal__install-directory">
+                  <span className="download-game-modal__install-directory-label">
+                    Install directory
+                  </span>
+                  <FocusItem
+                    id={DOWNLOAD_GAME_INSTALL_DIR_BUTTON_ID}
+                    navigationState={
+                      isOptionsInteractionLocked ? "disabled" : "active"
+                    }
+                    actions={{
+                      primary: () => void handleChooseInstallPath(),
+                    }}
+                    asChild
+                  >
+                    <button
+                      type="button"
+                      className="download-game-modal__install-directory-path"
+                      title={installPath || undefined}
+                      disabled={isOptionsInteractionLocked}
+                      onClick={() => void handleChooseInstallPath()}
+                    >
+                      {installPath || "Default"}
+                    </button>
+                  </FocusItem>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="download-game-modal__actions">

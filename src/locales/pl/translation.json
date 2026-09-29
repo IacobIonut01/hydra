@@ -182,7 +182,7 @@
   },
   "bottom_panel": {
     "reconnecting": "Ponowne łączenie: {{title}}…",
-    "recovering": "Odzyskiwanie: {{title}}… ({{percentage}})",
+    "recovering": "Ponowne pobieranie zapisanej części {{title}}… ({{percentage}})",
     "no_downloads_in_progress": "Brak pobierań w toku",
     "downloading_metadata": "Pobieranie metadanych {{title}}…",
     "downloading": "Pobieranie {{title}}… (ukończono: {{percentage}}) – zakończenie: {{eta}} – {{speed}}",
@@ -231,6 +231,7 @@
     "filters_sidebar_hint": "Użyj paska bocznego, aby zawęzić wyniki wyszukiwania",
     "active_filters": "Aktywne filtry",
     "no_genres": "Brak kategorii",
+    "store_all": "Wszystkie",
     "mode_modern_games": "Współczesne gry",
     "mode_classics": "Klasyki",
     "platforms": "Platformy"
@@ -731,7 +732,8 @@
     "create_steam_shortcut_modal_cancel_button": "Anuluj",
     "delete_shortcut_success": "Skrót Steam został pomyślnie usunięty",
     "delete_shortcut_error": "Nie udało się usunąć skrótu Steam",
-    "delete_steam_shortcut": "Usuń skrót Steam"
+    "delete_steam_shortcut": "Usuń skrót Steam",
+    "streaming_now": "Streaming w toku"
   },
   "activation": {
     "title": "Aktywuj Hydrę",
@@ -743,7 +745,7 @@
   },
   "downloads": {
     "reconnecting": "Ponowne łączenie…",
-    "recovering": "Odzyskiwanie pobierania… {{percentage}}",
+    "recovering": "Ponowne pobieranie zapisanej części… {{percentage}}",
     "resume": "Wznów",
     "pause": "Wstrzymaj",
     "eta": "Zakończenie: {{eta}}",
@@ -861,6 +863,14 @@
     "debrid_services": "Usługi debrid",
     "download_sources": "Źródła pobierania",
     "compatibility": "Kompatybilność",
+    "big_picture_launching_monitor": "Big Picture launching monitor",
+    "system_default_monitor": "System default monitor",
+    "primary_monitor": "Primary",
+    "missing_monitor": "Missing display",
+    "big_picture_output_device": "Big Picture output device",
+    "system_default_audio_device": "System default audio device",
+    "default_audio_device": "Default",
+    "missing_audio_device": "Missing audio device",
     "language": "Język",
     "api_token": "Token API",
     "enable_real_debrid": "Włącz Real-Debrid",
@@ -1336,7 +1346,9 @@
     "big_picture_enable_sounds": "Włącz dźwięki Big Picture",
     "big_picture_enable_virtual_keyboard": "Włącz wirtualną klawiaturę Big Picture",
     "big_picture_enable_diagnostics": "Włącz diagnostykę nawigacji",
-    "big_picture_diagnostics_position": "Pozycja diagnostyki"
+    "big_picture_diagnostics_position": "Pozycja diagnostyki",
+    "console_streaming": "Streaming konsol",
+    "enable_console_streaming": "Włącz streaming konsol (Moonlight)"
   },
   "notifications": {
     "download_complete": "Pobieranie ukończone",
@@ -1380,7 +1392,13 @@
     "instructions": "Zainstaluj umu-run albo Wine w swojej dystrybucji Linuksa, aby instalator gry mógł działać"
   },
   "modal": {
-    "close": "Przycisk zamykania"
+    "close": "Przycisk zamykania",
+    "stream_pairing_title": "Sparuj urządzenie do streamingu",
+    "stream_pairing_description": "Wprowadź PIN wyświetlany na urządzeniu Moonlight, aby sparować je z Hydrą.",
+    "stream_pairing_placeholder": "PIN",
+    "stream_pairing_submit": "Potwierdź",
+    "stream_pairing_error_invalid_pin": "Nieprawidłowy PIN. Sprawdź PIN na swoim urządzeniu i spróbuj ponownie.",
+    "stream_pairing_error_no_session": "Sesja parowania wygasła. Rozpocznij parowanie ponownie ze swojego urządzenia."
   },
   "classics_onboarding": {
     "title": "Witamy w Hydra Classics",

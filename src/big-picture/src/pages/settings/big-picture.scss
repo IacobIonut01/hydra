@@ -13,4 +13,33 @@
   &__select {
     width: 100%;
   }
+
+  &__warning {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing-unit) * 3);
+    padding: calc(var(--spacing-unit) * 3) calc(var(--spacing-unit) * 4);
+    background-color: var(--alert-background);
+    border: 1px solid color-mix(in srgb, var(--alert) 12%, transparent);
+    border-radius: calc(var(--spacing-unit) * 2);
+  }
+
+  &__warning-icon {
+    flex-shrink: 0;
+    width: calc(var(--spacing-unit) * 5);
+    height: calc(var(--spacing-unit) * 5);
+    color: var(--alert);
+  }
+
+  &__warning-text {
+    flex: 1;
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  &__warning-action {
+    flex-shrink: 0;
+  }
 }

@@ -36,7 +36,8 @@ export const isActiveLikeDownload = (download: Download) => {
   return (
     download.status === "active" ||
     download.status === "extracting" ||
-    download.extracting
+    download.extracting ||
+    download.installing === true
   );
 };
 

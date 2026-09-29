@@ -11,6 +11,10 @@ import {
   CUSTOM_WINDOW_BORDER_WIDTH,
   CUSTOM_WINDOW_TITLE_BAR_HEIGHT,
 } from "@shared";
+import {
+  applyBigPictureZoomFactor,
+  getBigPictureZoomFactor,
+} from "../../types/big-picture-ui-scale";
 import type {
   AchievementCustomNotificationPosition,
   AchievementNotificationInfo,
@@ -34,6 +38,8 @@ import { t } from "i18next";
 import { orderBy } from "lodash-es";
 import path from "node:path";
 import UserAgent from "user-agents";
+import { BigPictureSessionManager } from "./big-picture-session-manager";
+import { DisplayManager } from "./display-manager";
 import { HydraApi } from "./hydra-api";
 import { logger } from "./logger";
 import {
@@ -47,6 +53,11 @@ const isLinuxWayland =
   (process.env.XDG_SESSION_TYPE === "wayland" ||
     Boolean(process.env.WAYLAND_DISPLAY));
 
+const BIG_PICTURE_FULLSCREEN_TOGGLE_DELAY_MS = 150;
+const LINUX_BIG_PICTURE_PLACEMENT_RETRY_DELAYS_MS = [
+  100, 500, 1_000, 2_000,
+] as const;
+
 interface CreateMainWindowOptions {
   forceBigPicture?: boolean;
 }
@@ -56,6 +67,7 @@ export class WindowManager {
   private static gameLauncherWindowInstance: Electron.BrowserWindow | null =
     null;
   private static bigPicture: Electron.BrowserWindow | null = null;
+  private static bigPicturePlacementRetryTimers: NodeJS.Timeout[] = [];
   private static friendsWindow: Electron.BrowserWindow | null = null;
   private static authWindow: Electron.BrowserWindow | null = null;
   private static retroAchievementsConnectionWindow: Electron.BrowserWindow | null =
@@ -81,6 +93,12 @@ export class WindowManager {
 
   public static get gameLauncherWindow(): Electron.BrowserWindow | null {
     return this.gameLauncherWindowInstance;
+  }
+
+  public static get bigPictureWindow(): Electron.BrowserWindow | null {
+    return this.bigPicture && !this.bigPicture.isDestroyed()
+      ? this.bigPicture
+      : null;
   }
 
   public static clearMainWindow(): void {
@@ -181,6 +199,89 @@ export class WindowManager {
     main.setSkipTaskbar(false);
   }
 
+  private static placeBigPictureWindowOnDisplay(
+    window: BrowserWindow,
+    display: Electron.Display
+  ) {
+    const targetBounds =
+      process.platform === "linux" ? display.workArea : display.bounds;
+
+    window.setBounds(
+      {
+        x: targetBounds.x,
+        y: targetBounds.y,
+        width: targetBounds.width,
+        height: targetBounds.height,
+      },
+      false
+    );
+    window.setPosition(targetBounds.x, targetBounds.y, false);
+    window.setSize(targetBounds.width, targetBounds.height, false);
+  }
+
+  private static useNativeBigPictureFullscreen() {
+    return process.platform !== "linux";
+  }
+
+  private static isActiveBigPictureWindow(window: BrowserWindow) {
+    return this.bigPicture === window && !window.isDestroyed();
+  }
+
+  private static isBigPictureWindowOnDisplay(
+    window: BrowserWindow,
+    display: Electron.Display
+  ) {
+    return screen.getDisplayMatching(window.getBounds()).id === display.id;
+  }
+
+  private static presentBigPictureWindow(
+    window: BrowserWindow,
+    display: Electron.Display
+  ) {
+    this.placeBigPictureWindowOnDisplay(window, display);
+
+    if (this.useNativeBigPictureFullscreen()) {
+      window.setFullScreen(true);
+      return;
+    }
+
+    window.setVisibleOnAllWorkspaces(false);
+    this.placeBigPictureWindowOnDisplay(window, display);
+  }
+
+  private static cancelBigPictureWindowPlacementRetries() {
+    for (const timer of this.bigPicturePlacementRetryTimers) {
+      clearTimeout(timer);
+    }
+
+    this.bigPicturePlacementRetryTimers = [];
+  }
+
+  private static scheduleBigPictureWindowPlacement(display: Electron.Display) {
+    this.cancelBigPictureWindowPlacementRetries();
+
+    if (process.platform !== "linux") return;
+
+    for (const delayMs of LINUX_BIG_PICTURE_PLACEMENT_RETRY_DELAYS_MS) {
+      const timer = setTimeout(() => {
+        this.bigPicturePlacementRetryTimers =
+          this.bigPicturePlacementRetryTimers.filter(
+            (retryTimer) => retryTimer !== timer
+          );
+
+        if (!this.bigPicture || this.bigPicture.isDestroyed()) {
+          return;
+        }
+
+        this.placeBigPictureWindowOnDisplay(this.bigPicture, display);
+        this.bigPicture.moveTop();
+        this.bigPicture.focus();
+      }, delayMs);
+
+      this.bigPicturePlacementRetryTimers.push(timer);
+    }
+  }
+
   public static sendToAppWindows(channel: string, ...args: unknown[]) {
     const windows = [this.mainWindow, this.bigPicture, this.friendsWindow];
 
@@ -188,6 +289,34 @@ export class WindowManager {
       if (!window || window.isDestroyed()) continue;
       window.webContents.send(channel, ...args);
     }
+  }
+
+  /**
+   * The PIN prompt only reaches the user through a renderer, so the window
+   * showing it has to be the visible one: Big Picture when it is on screen,
+   * the main window otherwise. Runs on every request, since a timed-out
+   * session can be retried.
+   */
+  public static revealStreamPairingPrompt() {
+    const bigPicture = this.bigPicture;
+
+    if (bigPicture && !bigPicture.isDestroyed() && bigPicture.isVisible()) {
+      bigPicture.focus();
+      return;
+    }
+
+    const main = this.mainWindow;
+
+    if (main && !main.isDestroyed()) {
+      // Undo what opening Big Picture — or launching straight into it — left
+      // behind, so the prompt is visible and usable.
+      main.setIgnoreMouseEvents(false);
+      main.setFocusable(true);
+      main.setSkipTaskbar(false);
+      main.setOpacity(1);
+    }
+
+    this.focusMainWindow();
   }
 
   public static sendDownloadsUpdated() {
@@ -445,8 +574,28 @@ export class WindowManager {
     });
   }
 
+  public static hasBigPictureWindow() {
+    return !!this.bigPicture && !this.bigPicture.isDestroyed();
+  }
+
+  public static closeBigPictureWindow() {
+    if (this.hasBigPictureWindow()) {
+      this.bigPicture?.close();
+    }
+  }
+
   public static async openBigPictureWindow() {
     if (this.bigPicture) {
+      const targetDisplay = await DisplayManager.getBigPictureDisplay();
+
+      if (!this.isActiveBigPictureWindow(this.bigPicture)) {
+        return;
+      }
+
+      if (!this.isBigPictureWindowOnDisplay(this.bigPicture, targetDisplay)) {
+        await this.applyBigPictureDisplayPreference(targetDisplay);
+      }
+
       this.bigPicture.focus();
       return;
     }
@@ -457,12 +606,12 @@ export class WindowManager {
       })
       .catch(() => null);
 
-    const mainWindow = this.mainWindow;
-    const targetDisplay =
-      mainWindow && !mainWindow.isDestroyed()
-        ? screen.getDisplayMatching(mainWindow.getBounds())
-        : screen.getPrimaryDisplay();
-    const targetBounds = targetDisplay.bounds;
+    await BigPictureSessionManager.apply();
+    const targetDisplay = await DisplayManager.getBigPictureDisplay();
+    const targetBounds =
+      process.platform === "linux"
+        ? targetDisplay.workArea
+        : targetDisplay.bounds;
 
     this.bigPicture = new BrowserWindow({
       x: targetBounds.x,
@@ -476,8 +625,11 @@ export class WindowManager {
       webPreferences: {
         preload: path.join(__dirname, "../preload/index.mjs"),
         sandbox: false,
+        backgroundThrottling: false,
       },
     });
+
+    this.applyBigPictureUiScalePreference(userPreferences);
 
     this.bigPicture.removeMenu();
 
@@ -499,12 +651,23 @@ export class WindowManager {
         main.setOpacity(1);
         this.disableMainWindowWhileBigPictureIsOpen();
       }
-      this.bigPicture?.show();
-      this.bigPicture?.setFullScreen(true);
+
+      if (this.bigPicture && !this.bigPicture.isDestroyed()) {
+        this.placeBigPictureWindowOnDisplay(this.bigPicture, targetDisplay);
+      }
+
+      if (this.bigPicture && !this.bigPicture.isDestroyed()) {
+        this.applyBigPictureUiScalePreference(userPreferences);
+        this.bigPicture.show();
+        this.placeBigPictureWindowOnDisplay(this.bigPicture, targetDisplay);
+        this.presentBigPictureWindow(this.bigPicture, targetDisplay);
+        this.scheduleBigPictureWindowPlacement(targetDisplay);
+      }
       this.bigPicture?.focus();
     });
 
     this.bigPicture.on("closed", () => {
+      this.cancelBigPictureWindowPlacementRetries();
       this.bigPicture = null;
       const main = this.mainWindow;
       if (main && !main.isDestroyed()) {
@@ -516,7 +679,235 @@ export class WindowManager {
         main.show();
         main.focus();
       }
+
+      BigPictureSessionManager.restore().catch((error) => {
+        logger.warn("Failed to restore Big Picture session settings", error);
+      });
     });
+  }
+
+  private static keyboardOverlayWindow: Electron.BrowserWindow | null = null;
+
+  private static getKeyboardOverlayBounds(): Electron.Rectangle {
+    const targetDisplay =
+      this.bigPicture && !this.bigPicture.isDestroyed()
+        ? screen.getDisplayMatching(this.bigPicture.getBounds())
+        : screen.getPrimaryDisplay();
+    const area =
+      process.platform === "linux"
+        ? targetDisplay.workArea
+        : targetDisplay.bounds;
+
+    const width = Math.min(1400, Math.max(720, area.width - 96));
+    const height = Math.min(440, Math.max(320, Math.round(area.height * 0.45)));
+
+    return {
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + area.height - height - 24,
+      width,
+      height,
+    };
+  }
+
+  public static createKeyboardOverlayWindow() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed()
+    ) {
+      return this.keyboardOverlayWindow;
+    }
+
+    this.keyboardOverlayWindow = new BrowserWindow({
+      ...this.getKeyboardOverlayBounds(),
+      icon,
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      webPreferences: {
+        preload: path.join(__dirname, "../preload/index.mjs"),
+        sandbox: false,
+        backgroundThrottling: false,
+      },
+    });
+
+    this.keyboardOverlayWindow.setAlwaysOnTop(true, "screen-saver");
+    this.keyboardOverlayWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+    });
+    this.keyboardOverlayWindow.removeMenu();
+    this.keyboardOverlayWindow.setMenu(null);
+
+    this.loadWindowURL(
+      this.keyboardOverlayWindow,
+      "big-picture/keyboard-overlay"
+    );
+
+    this.keyboardOverlayWindow.on("closed", () => {
+      this.keyboardOverlayWindow = null;
+    });
+
+    return this.keyboardOverlayWindow;
+  }
+
+  public static showKeyboardOverlay() {
+    const window = this.createKeyboardOverlayWindow();
+
+    window.setBounds(this.getKeyboardOverlayBounds());
+    window.showInactive();
+  }
+
+  public static hideKeyboardOverlay() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed()
+    ) {
+      this.keyboardOverlayWindow.hide();
+    }
+  }
+
+  public static toggleKeyboardOverlay() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed() &&
+      this.keyboardOverlayWindow.isVisible()
+    ) {
+      this.hideKeyboardOverlay();
+      return false;
+    }
+
+    this.showKeyboardOverlay();
+    return true;
+  }
+
+  public static isKeyboardOverlayVisible(): boolean {
+    return (
+      !!this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed() &&
+      this.keyboardOverlayWindow.isVisible()
+    );
+  }
+
+  public static closeKeyboardOverlayWindow() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed()
+    ) {
+      this.keyboardOverlayWindow.close();
+      this.keyboardOverlayWindow = null;
+    }
+  }
+
+  public static async applyBigPictureDisplayPreference(
+    targetDisplay?: Electron.Display
+  ) {
+    const bigPicture = this.bigPicture;
+
+    if (!bigPicture || bigPicture.isDestroyed()) {
+      return;
+    }
+
+    const display =
+      targetDisplay ?? (await DisplayManager.getBigPictureDisplay());
+
+    if (!this.isActiveBigPictureWindow(bigPicture)) {
+      return;
+    }
+
+    const wasFullScreen = bigPicture.isFullScreen();
+
+    if (wasFullScreen) {
+      bigPicture.setFullScreen(false);
+      await new Promise((resolve) =>
+        setTimeout(resolve, BIG_PICTURE_FULLSCREEN_TOGGLE_DELAY_MS)
+      );
+
+      if (!this.isActiveBigPictureWindow(bigPicture)) {
+        return;
+      }
+    }
+
+    this.presentBigPictureWindow(bigPicture, display);
+    this.scheduleBigPictureWindowPlacement(display);
+
+    if (wasFullScreen && this.useNativeBigPictureFullscreen()) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, BIG_PICTURE_FULLSCREEN_TOGGLE_DELAY_MS)
+      );
+
+      if (!this.isActiveBigPictureWindow(bigPicture)) {
+        return;
+      }
+
+      this.placeBigPictureWindowOnDisplay(bigPicture, display);
+    }
+
+    if (!this.isActiveBigPictureWindow(bigPicture)) {
+      return;
+    }
+
+    bigPicture.show();
+    bigPicture.focus();
+  }
+
+  public static applyBigPictureUiScalePreference(
+    userPreferences: UserPreferences | null | undefined
+  ) {
+    this.applyBigPictureUiScaleToWindow(
+      this.bigPicture,
+      userPreferences?.bigPictureUiScale
+    );
+  }
+
+  // The desktop transition that drops the zoom factor (UAC secure
+  // desktop, display detach) can still be unwinding when a re-apply
+  // lands, silently discarding it -- keep re-applying until the factor
+  // actually reads back as the saved preference.
+  public static async reapplyBigPictureUiScalePreference(attempts = 4) {
+    const userPreferences = await db
+      .get<string, UserPreferences | null>(levelKeys.userPreferences, {
+        valueEncoding: "json",
+      })
+      .catch(() => null);
+
+    const expected = getBigPictureZoomFactor(
+      userPreferences?.bigPictureUiScale
+    );
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const window = this.bigPicture;
+      if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
+        return;
+      }
+
+      if (Math.abs(window.webContents.getZoomFactor() - expected) < 0.001) {
+        return;
+      }
+
+      logger.warn(
+        `Big Picture zoom factor drifted to ${window.webContents.getZoomFactor()}, restoring ${expected}`
+      );
+      this.applyBigPictureUiScalePreference(userPreferences);
+
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+    }
+  }
+
+  private static applyBigPictureUiScaleToWindow(
+    window: Electron.BrowserWindow | null,
+    uiScale: UserPreferences["bigPictureUiScale"] | null | undefined
+  ) {
+    if (!window || window.isDestroyed()) {
+      return;
+    }
+
+    applyBigPictureZoomFactor(window.webContents, uiScale);
   }
 
   public static openFriendsWindow() {
@@ -930,18 +1321,29 @@ export class WindowManager {
   private static readonly GAME_LAUNCHER_WINDOW_WIDTH = 550;
   private static readonly GAME_LAUNCHER_WINDOW_HEIGHT = 320;
 
-  public static async createGameLauncherWindow(shop: string, objectId: string) {
+  public static async createGameLauncherWindow(
+    shop: string,
+    objectId: string,
+    targetDisplay?: Electron.Display
+  ) {
     if (this.gameLauncherWindow) {
       this.gameLauncherWindow.close();
       this.gameLauncherWindowInstance = null;
     }
 
-    const display = screen.getPrimaryDisplay();
-    const { width: displayWidth, height: displayHeight } = display.bounds;
+    const display = targetDisplay ?? screen.getPrimaryDisplay();
+    const {
+      x: displayX,
+      y: displayY,
+      width: displayWidth,
+      height: displayHeight,
+    } = display.bounds;
 
-    const x = Math.round((displayWidth - this.GAME_LAUNCHER_WINDOW_WIDTH) / 2);
+    const x = Math.round(
+      displayX + (displayWidth - this.GAME_LAUNCHER_WINDOW_WIDTH) / 2
+    );
     const y = Math.round(
-      (displayHeight - this.GAME_LAUNCHER_WINDOW_HEIGHT) / 2
+      displayY + (displayHeight - this.GAME_LAUNCHER_WINDOW_HEIGHT) / 2
     );
 
     const gameLauncherWindow = new BrowserWindow({
@@ -973,7 +1375,9 @@ export class WindowManager {
     );
 
     gameLauncherWindow.on("closed", () => {
-      this.gameLauncherWindowInstance = null;
+      if (this.gameLauncherWindowInstance === gameLauncherWindow) {
+        this.gameLauncherWindowInstance = null;
+      }
     });
 
     if (!app.isPackaged || isStaging) {
@@ -988,9 +1392,11 @@ export class WindowManager {
   }
 
   public static closeGameLauncherWindow() {
-    if (this.gameLauncherWindow) {
-      this.gameLauncherWindow.close();
+    const gameLauncher = this.gameLauncherWindow;
+
+    if (gameLauncher) {
       this.gameLauncherWindowInstance = null;
+      gameLauncher.close();
     }
   }
 

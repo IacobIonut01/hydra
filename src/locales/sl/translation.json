@@ -522,7 +522,8 @@
     "create_steam_shortcut_modal_create_button": "Create",
     "create_steam_shortcut_modal_cancel_button": "Cancel",
     "download_options_two": "{{count}} možnosti prenosa",
-    "download_options_few": "{{count}} možnosti prenosa"
+    "download_options_few": "{{count}} možnosti prenosa",
+    "streaming_now": "Pretakanje v teku"
   },
   "activation": {
     "title": "Aktiviraj Hydra",
@@ -787,10 +788,20 @@
     "proton_source_umu_default": "umu default selection",
     "proton_source_steam": "Installed by Steam",
     "proton_source_compatibility_tools": "Installed in Steam compatibilitytools.d",
+    "big_picture_launching_monitor": "Big Picture launching monitor",
+    "system_default_monitor": "System default monitor",
+    "primary_monitor": "Primary",
+    "missing_monitor": "Missing display",
+    "big_picture_output_device": "Big Picture output device",
+    "system_default_audio_device": "System default audio device",
+    "default_audio_device": "Default",
+    "missing_audio_device": "Missing audio device",
     "download_count_two": "{{countFormatted}} možnosti prenosa",
     "download_count_few": "{{countFormatted}} možnosti prenosa",
     "found_download_option_two": "Najdeni {{countFormatted}} možnosti prenosa",
-    "found_download_option_few": "Najdene {{countFormatted}} možnosti prenosa"
+    "found_download_option_few": "Najdene {{countFormatted}} možnosti prenosa",
+    "console_streaming": "Pretakanje konzole",
+    "enable_console_streaming": "Omogoči pretakanje konzole (Moonlight)"
   },
   "notifications": {
     "download_complete": "Prenos končan",
@@ -834,7 +845,13 @@
     "instructions": "Install umu-run or Wine on your Linux distro so the game installer can run"
   },
   "modal": {
-    "close": "Zapri gumb"
+    "close": "Zapri gumb",
+    "stream_pairing_title": "Seznanjanje naprave za pretakanje",
+    "stream_pairing_description": "Vnesite PIN, prikazan v napravi Moonlight, da jo seznanite s Hydra.",
+    "stream_pairing_placeholder": "PIN",
+    "stream_pairing_submit": "Potrdi",
+    "stream_pairing_error_invalid_pin": "Napačen PIN. Preverite PIN v svoji napravi in poskusite znova.",
+    "stream_pairing_error_no_session": "Seja seznanjanja je potekla. Znova zaženite seznanjanje v svoji napravi."
   },
   "forms": {
     "toggle_password_visibility": "Preklopi vidnost gesla"

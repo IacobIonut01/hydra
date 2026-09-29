@@ -8,8 +8,8 @@ import {
   StackIcon,
   DeviceDesktopIcon,
 } from "@primer/octicons-react";
-import InfiniteScroll from "react-infinite-scroll-component";
 import { useCallback, useMemo, useState } from "react";
+import { useLibraryPagination } from "./use-library-pagination";
 import { useFormat, useLibrary, useToast } from "@renderer/hooks";
 import { logger } from "@renderer/logger";
 import type { LibraryGame, UserGame } from "@types";
@@ -34,6 +34,7 @@ interface LibraryTabProps {
   pinnedGames: UserGame[];
   libraryGames: UserGame[];
   hasMoreLibraryGames: boolean;
+  isLoadingLibraryGames: boolean;
   isAwaitingInitialLibrary: boolean;
   statsIndex: number;
   userStats: { libraryCount: number } | null;
@@ -53,6 +54,7 @@ export function LibraryTab({
   pinnedGames,
   libraryGames,
   hasMoreLibraryGames,
+  isLoadingLibraryGames,
   isAwaitingInitialLibrary,
   statsIndex,
   userStats,
@@ -175,6 +177,12 @@ export function LibraryTab({
   const hasGames = libraryGames.length > 0;
   const hasPinnedGames = pinnedGames.length > 0;
   const hasAnyGames = hasGames || hasPinnedGames;
+  const libraryEndRef = useLibraryPagination({
+    enabled: hasGames && hasMoreLibraryGames && !isAwaitingInitialLibrary,
+    isLoading: isLoadingLibraryGames,
+    itemCount: libraryGames.length,
+    onLoadMore,
+  });
 
   const resolvedCount =
     count !== undefined ? count : (userStats?.libraryCount ?? null);
@@ -262,15 +270,7 @@ export function LibraryTab({
                 </div>
               </div>
 
-              <InfiniteScroll
-                dataLength={libraryGames.length}
-                next={onLoadMore}
-                hasMore={hasMoreLibraryGames}
-                loader={null}
-                scrollThreshold={0.9}
-                style={{ overflow: "visible" }}
-                scrollableTarget="scrollableDiv"
-              >
+              <div>
                 <ul className="profile-content__games-grid">
                   {libraryGames?.map((game) => {
                     return (
@@ -287,7 +287,12 @@ export function LibraryTab({
                     );
                   })}
                 </ul>
-              </InfiniteScroll>
+                <div
+                  ref={libraryEndRef}
+                  aria-hidden="true"
+                  style={{ height: 1 }}
+                />
+              </div>
             </div>
           )}
         </div>

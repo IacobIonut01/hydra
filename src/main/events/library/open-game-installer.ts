@@ -1,98 +1,18 @@
 import { shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
-import { spawn } from "node:child_process";
 
 import { getDownloadsPath } from "../helpers/get-downloads-path";
 import { registerEvent } from "../register-event";
 import { downloadsSublevel, gamesSublevel, levelKeys } from "@main/level";
 import { GameShop } from "@types";
-import { logger, Umu, Wine } from "@main/services";
-
-const launchInstallerWithWine = async (filePath: string): Promise<boolean> => {
-  return await new Promise<boolean>((resolve) => {
-    const child = spawn("wine", [filePath], {
-      detached: true,
-      stdio: "ignore",
-      shell: false,
-    });
-
-    child.once("spawn", () => {
-      child.unref();
-      resolve(true);
-    });
-
-    child.once("error", (error) => {
-      logger.error("Failed to execute game installer with wine", error);
-      resolve(false);
-    });
-  });
-};
-
-const launchInstallerDirectly = async (filePath: string): Promise<boolean> => {
-  return await new Promise<boolean>((resolve) => {
-    const child = spawn(filePath, [], {
-      detached: true,
-      stdio: "ignore",
-      shell: false,
-    });
-
-    child.once("spawn", () => {
-      child.unref();
-      resolve(true);
-    });
-
-    child.once("error", (error) => {
-      logger.error("Failed to execute game installer directly", error);
-      resolve(false);
-    });
-  });
-};
-
-const openPathAndCheck = async (filePath: string): Promise<boolean> => {
-  const openError = await shell.openPath(filePath);
-  return openError.length === 0;
-};
-
-const executeGameInstaller = async (
-  filePath: string,
-  options?: {
-    gameId?: string;
-    winePrefixPath?: string | null;
-    protonPath?: string | null;
-  }
-) => {
-  if (process.platform === "win32") {
-    const launchedDirectly = await launchInstallerDirectly(filePath);
-    if (launchedDirectly) {
-      return true;
-    }
-
-    return await openPathAndCheck(filePath);
-  }
-
-  if (process.platform === "linux") {
-    try {
-      await Umu.launchExecutable(filePath, [], {
-        gameId: options?.gameId,
-        winePrefixPath: options?.winePrefixPath,
-        protonPath: options?.protonPath,
-      });
-      return true;
-    } catch (error) {
-      logger.error("Failed to execute game installer with umu-run", error);
-
-      const launchedWithWine = await launchInstallerWithWine(filePath);
-      if (launchedWithWine) {
-        return true;
-      }
-
-      return await openPathAndCheck(filePath);
-    }
-  }
-
-  return await openPathAndCheck(filePath);
-};
+import { Wine } from "@main/services";
+import {
+  executeGameInstaller,
+  rescanAndBindExecutableAfterInstall,
+  scheduleRescanPoll,
+} from "@main/services/install/installer-runner";
+import { findInstallerInFolder } from "@main/services/install/installer-locator";
 
 const openGameInstaller = async (
   _event: Electron.IpcMainInvokeEvent,
@@ -128,29 +48,37 @@ const openGameInstaller = async (
     return true;
   }
 
-  const setupPath = path.join(gamePath, "setup.exe");
-  if (fs.existsSync(setupPath)) {
-    return await executeGameInstaller(setupPath, {
+  const installDirPath = download.installPath ?? null;
+
+  const onInstallerExit = () => {
+    void rescanAndBindExecutableAfterInstall(
+      shop,
+      objectId,
+      gamePath,
+      effectiveWinePrefixPath,
+      installDirPath
+    );
+  };
+
+  const onIndeterminateLaunch = () => {
+    scheduleRescanPoll(
+      shop,
+      objectId,
+      gamePath,
+      effectiveWinePrefixPath,
+      installDirPath
+    );
+  };
+
+  const installer = findInstallerInFolder(gamePath);
+  if (installer) {
+    return await executeGameInstaller(installer.path, {
       gameId: objectId,
       winePrefixPath: effectiveWinePrefixPath,
       protonPath: game?.protonPath,
+      onExit: onInstallerExit,
+      onIndeterminateLaunch,
     });
-  }
-
-  const gamePathFileNames = fs.readdirSync(gamePath);
-  const gamePathExecutableFiles = gamePathFileNames.filter(
-    (fileName: string) => path.extname(fileName).toLowerCase() === ".exe"
-  );
-
-  if (gamePathExecutableFiles.length === 1) {
-    return await executeGameInstaller(
-      path.join(gamePath, gamePathExecutableFiles[0]),
-      {
-        gameId: objectId,
-        winePrefixPath: effectiveWinePrefixPath,
-        protonPath: game?.protonPath,
-      }
-    );
   }
 
   shell.openPath(gamePath);

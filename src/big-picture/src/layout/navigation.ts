@@ -6,6 +6,7 @@ import { HOME_PAGE_REGION_ID } from "../pages/home/navigation";
 import { PROFILE_PAGE_REGION_ID } from "../pages/profile/navigation";
 import { SETTINGS_PAGE_REGION_ID } from "../pages/settings/navigation";
 import { LIBRARY_PAGE_REGION_ID } from "../components/pages/library/navigation";
+import { GAME_LAUNCHING_PAGE_REGION_ID } from "../pages/game-launching/navigation";
 
 export const BIG_PICTURE_APP_LAYER_ID = "big-picture-app-layer";
 export const BIG_PICTURE_SHELL_REGION_ID = "big-picture-shell";
@@ -89,6 +90,10 @@ export function getBigPictureSidebarItemIdFromPathname(pathname: string) {
     return null;
   }
 
+  if (normalizedPathname.startsWith("/launching")) {
+    return null;
+  }
+
   if (normalizedPathname.startsWith("/component-lab")) {
     return isDev
       ? BIG_PICTURE_SIDEBAR_ITEM_IDS.componentLab
@@ -145,6 +150,10 @@ export function getBigPictureContentEntryRegionIdFromPathname(
 
   if (normalizedPathname.startsWith("/profile")) {
     return PROFILE_PAGE_REGION_ID;
+  }
+
+  if (normalizedPathname.startsWith("/launching")) {
+    return GAME_LAUNCHING_PAGE_REGION_ID;
   }
 
   if (getBigPictureGameRouteMatch(normalizedPathname)) {

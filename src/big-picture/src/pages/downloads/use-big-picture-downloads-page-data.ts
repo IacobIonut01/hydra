@@ -60,6 +60,9 @@ export interface BigPictureActiveDownloadItem {
   canPauseOrResume: boolean;
   canMoveFromHero: boolean;
   canPromoteToHero: boolean;
+  isInstalling: boolean;
+  installBytesLabel: string | null;
+  installTargetLabel: string | null;
   game: LibraryGame;
 }
 
@@ -216,6 +219,9 @@ export function useBigPictureDownloadsPageData() {
   const extractionProgressByGameId = useBigPictureDownloadsStore(
     (state) => state.extractionProgressByGameId
   );
+  const installProgressByGameId = useBigPictureDownloadsStore(
+    (state) => state.installProgressByGameId
+  );
   const speedHistoryByGameId = useBigPictureDownloadsStore(
     (state) => state.speedHistoryByGameId
   );
@@ -308,6 +314,7 @@ export function useBigPictureDownloadsPageData() {
 
     const download = activeGame.download;
     const isExtracting = download.extracting;
+    const isInstalling = download.installing === true;
     const isPausedHero = download.status === "paused";
     const extractionProgress =
       extractionProgressByGameId[activeGame.id] ?? download.extractionProgress;
@@ -340,7 +347,7 @@ export function useBigPictureDownloadsPageData() {
     let statusTone: DownloadTone = "active";
     let speedLabel = "0 B/s";
     let pauseOrResumeAction: "pause" | "resume" = "pause";
-    const canPauseOrResume = !isExtracting;
+    const canPauseOrResume = !isExtracting && !isInstalling;
 
     if (download.status === "error") {
       statusLabel = "Error";
@@ -352,10 +359,13 @@ export function useBigPictureDownloadsPageData() {
       statusTone = "paused";
       speedLabel = "Paused";
       pauseOrResumeAction = "resume";
+    } else if (isInstalling) {
+      statusLabel = "Installing";
+      speedLabel = "Running installer";
     } else if (isExtracting) {
       statusLabel = "Extracting";
     } else if (lastPacket?.isRecovering) {
-      statusLabel = `Recovering download… ${Math.round(
+      statusLabel = `Re-downloading saved portion… ${Math.round(
         (lastPacket.recoveryProgress ?? 0) * 100
       )}%`;
     } else if (lastPacket?.isReconnecting) {
@@ -369,10 +379,19 @@ export function useBigPictureDownloadsPageData() {
     }
 
     if (!isPausedHero && download.status !== "error") {
-      speedLabel = isExtracting
-        ? "Preparing files"
-        : formatSpeed(lastPacket?.downloadSpeed ?? 0, userPreferences);
+      speedLabel = isInstalling
+        ? "Running installer"
+        : isExtracting
+          ? "Preparing files"
+          : formatSpeed(lastPacket?.downloadSpeed ?? 0, userPreferences);
     }
+
+    const installBytesWritten = installProgressByGameId[activeGame.id] ?? 0;
+    const installBytesLabel =
+      installBytesWritten > 0
+        ? `${formatBytes(installBytesWritten)} written`
+        : null;
+    const installTargetLabel = download.installPath ?? null;
 
     return {
       id: activeGame.id,
@@ -383,23 +402,30 @@ export function useBigPictureDownloadsPageData() {
       statusLabel,
       statusTone,
       progress,
-      progressLabel: formatProgress(progress),
-      transferLabel:
-        formatTransfer(bytesDownloaded, sizeInBytes) ??
-        formatBytes(bytesDownloaded),
+      progressLabel: isInstalling
+        ? (installBytesLabel ?? "…")
+        : formatProgress(progress),
+      transferLabel: isInstalling
+        ? (installTargetLabel ?? "--")
+        : (formatTransfer(bytesDownloaded, sizeInBytes) ??
+          formatBytes(bytesDownloaded)),
       speedLabel,
-      etaLabel: eta,
+      etaLabel: isInstalling ? "--" : eta,
       sizeLabel: sizeInBytes != null ? formatBytes(sizeInBytes) : "Unknown",
       pauseOrResumeAction,
       canPauseOrResume,
-      canMoveFromHero: !isExtracting,
-      canPromoteToHero: !isExtracting,
+      canMoveFromHero: !isExtracting && !isInstalling,
+      canPromoteToHero: !isExtracting && !isInstalling,
+      isInstalling,
+      installBytesLabel,
+      installTargetLabel,
       game: activeGame,
     };
   }, [
     activeGame,
     extractionProgressByGameId,
     formatDistance,
+    installProgressByGameId,
     lastPacket,
     renderTick,
     userPreferences,
@@ -490,7 +516,13 @@ export function useBigPictureDownloadsPageData() {
       );
       let seedAction: BigPictureDownloadListItem["seedAction"] = null;
 
-      if (
+      if (download?.installing) {
+        statusLabel = "Installing…";
+        statusTone = "active";
+      } else if (download?.installFailure) {
+        statusLabel = "Install needs attention";
+        statusTone = "error";
+      } else if (
         download?.status === "seeding" ||
         seedingStatus?.status === "seeding"
       ) {
@@ -604,6 +636,7 @@ export function useBigPictureDownloadsPageData() {
 
     const shouldZeroSpeed =
       activeGame.download.extracting ||
+      activeGame.download.installing ||
       lastPacket?.isReconnecting ||
       lastPacket?.isCheckingFiles ||
       lastPacket?.isDownloadingMetadata ||
@@ -728,6 +761,21 @@ export function useBigPictureDownloadsPageData() {
     [lastPacket?.gameId]
   );
 
+  const installGame = useCallback(async (game: LibraryGame) => {
+    if (!IS_DESKTOP) return;
+
+    await globalThis.window.electron.installGame(game.shop, game.objectId);
+  }, []);
+
+  const cancelInstall = useCallback(async (game: LibraryGame) => {
+    if (!IS_DESKTOP) return;
+
+    await globalThis.window.electron.cancelGameInstall(
+      game.shop,
+      game.objectId
+    );
+  }, []);
+
   const removeDownload = useCallback(
     async (game: LibraryGame) => {
       if (!IS_DESKTOP || !game.download) return;
@@ -812,6 +860,8 @@ export function useBigPictureDownloadsPageData() {
     sendToQueue,
     moveToPaused,
     cancelDownload,
+    installGame,
+    cancelInstall,
     removeDownload,
     moveQueuedDownload,
     setQueuedDownloadPosition,

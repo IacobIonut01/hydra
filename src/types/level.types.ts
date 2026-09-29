@@ -1,7 +1,10 @@
 import type { Downloader } from "@shared";
+import type { InstallFailure } from "./index";
 import type { GameShop } from "./game.types";
 import type { DownloadStatus } from "./download.types";
+import type { HydraDisplayBounds } from "./display.types";
 import type { ClassicsDisc } from "./emulator.types";
+import type { BigPictureUiScale } from "./big-picture-ui-scale";
 
 export type SubscriptionStatus = "active" | "pending" | "cancelled";
 
@@ -106,7 +109,18 @@ export interface Download {
   automaticallyDeleteArchiveFiles: boolean;
   fileIndices?: number[];
   selectedFilesSize?: number | null;
+  realDebridTorrentId?: string;
+  awaitingDebrid?: boolean;
   customTrackers?: string[];
+  downloadSourceId?: string;
+  downloadSourceName?: string;
+  repackTitle?: string;
+  automaticallyInstall?: boolean;
+  installPath?: string | null;
+  installing?: boolean;
+  installStartedAt?: number;
+  installFailure?: InstallFailure | null;
+  installedPath?: string | null;
 }
 
 export interface DownloadLayoutState {
@@ -138,6 +152,12 @@ export interface DownloadDirectoryPreference {
 }
 
 export interface UserPreferences {
+  controllerEnabled?: boolean;
+  controllerAssignments?: Record<string, string>;
+  /** deviceId -> whether a virtual X360 pad should mirror the remapped state. */
+  controllerVirtualOutput?: Record<string, boolean>;
+  /** deviceId -> whether the physical pad should be hidden from other apps. */
+  controllerHidden?: Record<string, boolean>;
   downloadsPath?: string | null;
   defaultWinePrefixPath?: string | null;
   downloadDirectories?: DownloadDirectoryPreference[];
@@ -156,6 +176,10 @@ export interface UserPreferences {
   launchToLibraryPage?: boolean;
   bigPictureLaunchToLibraryPage?: boolean;
   launchInBigPicture?: boolean;
+  bigPictureDisplayId?: string | null;
+  bigPictureDisplayBounds?: HydraDisplayBounds | null;
+  bigPictureAudioDeviceId?: string | null;
+  bigPictureUiScale?: BigPictureUiScale;
   disableNsfwAlert?: boolean;
   enableAutoInstall?: boolean;
   seedAfterDownloadComplete?: boolean;
@@ -172,17 +196,28 @@ export interface UserPreferences {
   showDownloadSpeedInMegabytes?: boolean;
   extractFilesByDefault?: boolean;
   deleteArchiveFilesAfterExtractionByDefault?: boolean;
+  autoInstallRepacks?: boolean;
+  autoInstallInteractive?: boolean;
+  installPath?: string | null;
+  deleteInstallerFilesAfterInstall?: boolean;
+  pauseSeedingWhileInstalling?: boolean;
+  launchAfterInstall?: boolean;
+  autoInstallExcludedSourceIds?: string[];
   enableSteamAchievements?: boolean;
   enableAchievementSouvenirs?: boolean;
   achievementScreenshotsPath?: string;
   autoplayGameTrailers?: boolean;
   hideToTrayOnGameStart?: boolean;
+  streamingEnabled?: boolean;
+  streamingServerName?: string;
   enableNewDownloadOptionsBadges?: boolean;
   createStartMenuShortcut?: boolean;
   bigPictureSoundsEnabled?: boolean;
   bigPictureVirtualKeyboardEnabled?: boolean;
   bigPictureDiagnosticsEnabled?: boolean;
   bigPictureDiagnosticsPosition?: BigPictureDiagnosticsPosition;
+  bigPictureGameModeEnabled?: boolean;
+  bigPictureInGameKeyboardEnabled?: boolean;
   maxDownloadSpeedBytesPerSecond?: number | null;
   torrentNetworkInterface?: string | null;
   globalTrackers?: string[];

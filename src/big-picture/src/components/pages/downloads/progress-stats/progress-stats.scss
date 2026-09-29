@@ -33,3 +33,19 @@
   border-radius: inherit;
   transition: width 0.2s ease-out;
 }
+
+.downloads-progress-stats__bar--indeterminate .downloads-progress-stats__fill {
+  width: 40%;
+  background-color: var(--primary);
+  animation: downloads-progress-stats-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes downloads-progress-stats-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(350%);
+  }
+}

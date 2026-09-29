@@ -211,7 +211,7 @@
     "downloading_batch": "Téléchargement de {{title}}… ({{percentage}} terminé {{filesDownloaded}}/{{filesTotal}} fichiers) - Fin estimée {{eta}} - {{speed}}",
     "calculating_eta_batch": "Téléchargement de {{title}}… ({{percentage}} terminé {{filesDownloaded}}/{{filesTotal}} fichiers) - Calcul du temps restant…",
     "reconnecting": "Reconnexion {{title}}…",
-    "recovering": "Récupération {{title}}… ({{percentage}})"
+    "recovering": "Nouveau téléchargement de la partie enregistrée de {{title}}… ({{percentage}})"
   },
   "catalogue": {
     "search": "Filtrer…",
@@ -256,6 +256,7 @@
     "filters_sidebar_hint": "Utilisez la barre latérale pour affiner votre recherche",
     "active_filters": "Filtres actifs",
     "no_genres": "Aucune catégorie",
+    "store_all": "Tous",
     "mode_modern_games": "Jeux modernes",
     "mode_classics": "Classiques",
     "platforms": "Plateformes"
@@ -977,7 +978,8 @@
     "pkg_unreadable_toast": "Impossible de lire ce PKG. Installez-le et lancez-le directement depuis RPCS3.",
     "reset_achievements_retroachievements_note": "Réinitialisez d'abord les succès sur RetroAchievements, sinon ils seront resynchronisés vers Hydra.",
     "reset_achievements_retroachievements_link": "Ouvrir le site RetroAchievements",
-    "reset_achievements_retroachievements_confirm": "J'ai déjà réinitialisé les succès de ce jeu sur RetroAchievements"
+    "reset_achievements_retroachievements_confirm": "J'ai déjà réinitialisé les succès de ce jeu sur RetroAchievements",
+    "streaming_now": "Diffusion en cours"
   },
   "activation": {
     "title": "Activer Hydra",
@@ -1035,7 +1037,7 @@
     "download_halted_title": "Téléchargement interrompu",
     "download_halted_description": "{{title}} a été interrompu car le dossier de téléchargement n'a plus assez d'espace. Libérez de l'espace puis reprenez le téléchargement.",
     "reconnecting": "Reconnexion…",
-    "recovering": "Récupération du téléchargement… {{percentage}}"
+    "recovering": "Nouveau téléchargement de la partie enregistrée… {{percentage}}"
   },
   "settings": {
     "integration_connect": "Connecter",
@@ -1524,6 +1526,14 @@
     "remove_emulator": "Supprimer l'émulateur",
     "remove_emulator_title": "Supprimer {{name}} d'Hydra ?",
     "remove_emulator_description": "Hydra oubliera le chemin de {{name}} et tous les dossiers ROM mappés. L'émulateur lui-même et vos fichiers ROM restent sur le disque. Vous pouvez relancer la configuration ensuite.",
+    "big_picture_launching_monitor": "Big Picture launching monitor",
+    "system_default_monitor": "System default monitor",
+    "primary_monitor": "Primary",
+    "missing_monitor": "Missing display",
+    "big_picture_output_device": "Big Picture output device",
+    "system_default_audio_device": "System default audio device",
+    "default_audio_device": "Default",
+    "missing_audio_device": "Missing audio device",
     "big_picture": "Big Picture",
     "big_picture_startup": "Démarrage",
     "big_picture_audio": "Audio",
@@ -1676,7 +1686,9 @@
     "setup_firmware_guide": "Ouvrir la page officielle PlayStation",
     "setup_match_wrong_platform": "mauvaise plateforme",
     "setup_run_in_background": "Exécuter en arrière-plan",
-    "scanning_system_label": "Analyse de {{system}}…"
+    "scanning_system_label": "Analyse de {{system}}…",
+    "console_streaming": "Diffusion sur console",
+    "enable_console_streaming": "Activer la diffusion sur console (Moonlight)"
   },
   "classics_onboarding": {
     "title": "Bienvenue dans Hydra Classics",
@@ -1734,7 +1746,13 @@
     "instructions": "Vérifiez la bonne façon d'installer l'un d'entre eux sur votre distribution Linux afin que le jeu puisse fonctionner normalement"
   },
   "modal": {
-    "close": "Fermer la fenêtre"
+    "close": "Fermer la fenêtre",
+    "stream_pairing_title": "Associer votre appareil de diffusion",
+    "stream_pairing_description": "Saisissez le PIN affiché sur votre appareil Moonlight pour l'associer à Hydra.",
+    "stream_pairing_placeholder": "PIN",
+    "stream_pairing_submit": "Confirmer",
+    "stream_pairing_error_invalid_pin": "PIN incorrect. Vérifiez le PIN sur votre appareil et réessayez.",
+    "stream_pairing_error_no_session": "La session d'association a expiré. Relancez l'association depuis votre appareil."
   },
   "forms": {
     "toggle_password_visibility": "Afficher/Masquer le mot de passe"

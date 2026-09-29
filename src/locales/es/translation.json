@@ -197,7 +197,7 @@
   },
   "bottom_panel": {
     "reconnecting": "Reconectando {{title}}…",
-    "recovering": "Recuperando {{title}}… ({{percentage}})",
+    "recovering": "Volviendo a descargar la parte guardada de {{title}}… ({{percentage}})",
     "no_downloads_in_progress": "Sin descargas en progreso",
     "downloading_metadata": "Descargando metadatos de {{title}}…",
     "downloading": "Descargando {{title}}… ({{percentage}} completado) - Finalizando {{eta}} - {{speed}}",
@@ -246,6 +246,7 @@
     "filters_sidebar_hint": "Usa la barra lateral para refinar tu búsqueda",
     "active_filters": "Filtros activos",
     "no_genres": "Sin categorías",
+    "store_all": "Todos",
     "mode_classics": "Clásicos",
     "mode_modern_games": "Juegos modernos",
     "platforms": "Plataformas"
@@ -362,7 +363,20 @@
     "downloads_section_title": "Descargas",
     "downloads_section_description": "Revisar actualizaciones u otras versiones del juego",
     "danger_zone_section_title": "Zona de Peligro",
-    "danger_zone_section_description": "Remover este juego de tu librería o los archivos descargados por Hydra",
+    "danger_zone_section_description": "Acciones irreversibles para este juego",
+    "danger_zone_progress_group": "Progreso",
+    "danger_zone_removal_group": "Eliminación",
+    "danger_zone_update_action": "Actualizar",
+    "danger_zone_reset_action": "Reiniciar",
+    "danger_zone_update_playtime_description": "Establecé manualmente cuánto tiempo jugaste",
+    "danger_zone_reset_playtime_description": "Pone en cero el tiempo de juego de este juego",
+    "danger_zone_reset_achievements_description": "Borra todos los logros desbloqueados de este juego",
+    "danger_zone_reset_achievements_none_unlocked": "Todavía no hay logros desbloqueados",
+    "danger_zone_reset_achievements_sign_in_required": "Iniciá sesión para reiniciar los logros",
+    "danger_zone_remove_files_description": "Elimina los archivos descargados de tu disco",
+    "danger_zone_remove_files_nothing_downloaded": "Todavía no se descargó nada para este juego",
+    "danger_zone_remove_files_download_in_progress": "No se pueden eliminar los archivos mientras hay una descarga en curso",
+    "danger_zone_remove_from_library_description": "Elimina el juego, su configuración y el tiempo de juego de Hydra",
     "download_in_progress": "Descarga en progreso",
     "download_paused": "Descarga pausada",
     "extracting": "Extrayendo",
@@ -958,7 +972,8 @@
     "download_error_torbox_torrent_not_ready": "TorBox todavía está preparando este torrent. Esperá un momento e intentá de nuevo.",
     "download_error_torbox_link_unavailable": "TorBox no pudo crear un enlace de descarga para este torrent. Intentá de nuevo más tarde.",
     "download_error_network_unreachable": "No se pudo conectar con el servidor de descarga. Revisá tu conexión a internet e intentá de nuevo.",
-    "download_error_network_certificate_rejected": "No se pudo verificar la conexión con el servidor de descarga. Puede que un antivirus o proxy esté inspeccionando el tráfico HTTPS."
+    "download_error_network_certificate_rejected": "No se pudo verificar la conexión con el servidor de descarga. Puede que un antivirus o proxy esté inspeccionando el tráfico HTTPS.",
+    "streaming_now": "Transmitiendo ahora"
   },
   "activation": {
     "title": "Activar Hydra",
@@ -970,7 +985,7 @@
   },
   "downloads": {
     "reconnecting": "Reconectando…",
-    "recovering": "Recuperando descarga… {{percentage}}",
+    "recovering": "Volviendo a descargar la parte guardada… {{percentage}}",
     "resume": "Resumir",
     "pause": "Pausar",
     "eta": "Tiempo de finalizción {{eta}}",
@@ -1609,6 +1624,14 @@
     "remove_emulator": "Quitar emulador",
     "remove_emulator_title": "¿Quitar {{name}} de Hydra?",
     "remove_emulator_description": "Hydra olvidará la ruta de {{name}} y todas las carpetas de ROMs mapeadas. El emulador y tus archivos ROM permanecen en el disco. Puedes volver a ejecutar la configuración después.",
+    "big_picture_launching_monitor": "Big Picture launching monitor",
+    "system_default_monitor": "System default monitor",
+    "primary_monitor": "Primary",
+    "missing_monitor": "Missing display",
+    "big_picture_output_device": "Big Picture output device",
+    "system_default_audio_device": "System default audio device",
+    "default_audio_device": "Default",
+    "missing_audio_device": "Missing audio device",
     "big_picture": "Big Picture",
     "big_picture_startup": "Inicio",
     "launch_big_picture_in_library_page": "Iniciar Big Picture en la página de Biblioteca",
@@ -1663,7 +1686,9 @@
     "wayland_souvenirs_warning_title": "Recuerdos en Wayland",
     "wayland_souvenirs_warning_description": "Debido al funcionamiento de Wayland, Hydra debe preguntarte qué ventana quieres capturar cada vez que abres un juego. Selecciona la ventana del juego para que Hydra pueda capturar recuerdos cuando desbloquees logros. Si no seleccionas una ventana, no se podrán capturar recuerdos.",
     "wayland_souvenirs_warning_cancel": "Cancelar",
-    "wayland_souvenirs_warning_confirm": "Aceptar"
+    "wayland_souvenirs_warning_confirm": "Aceptar",
+    "console_streaming": "Transmisión de consola",
+    "enable_console_streaming": "Activar transmisión de consola (Moonlight)"
   },
   "notifications": {
     "download_complete": "Descarga completada",
@@ -1708,7 +1733,13 @@
     "instructions": "Comprobá la forma correcta de instalar cualquiera de ellos en tu distribución de Linux para que el juego pueda ejecutarse con normalidad"
   },
   "modal": {
-    "close": "Botón de cerrar"
+    "close": "Botón de cerrar",
+    "stream_pairing_title": "Emparejar dispositivo de transmisión",
+    "stream_pairing_description": "Ingresá el PIN que aparece en tu dispositivo Moonlight para emparejarlo con Hydra.",
+    "stream_pairing_placeholder": "PIN",
+    "stream_pairing_submit": "Confirmar",
+    "stream_pairing_error_invalid_pin": "PIN incorrecto. Verificá el PIN en tu dispositivo y probá de nuevo.",
+    "stream_pairing_error_no_session": "La sesión de emparejamiento expiró. Iniciá el emparejamiento de nuevo desde tu dispositivo."
   },
   "forms": {
     "toggle_password_visibility": "Cambiar visibilidad de contraseña"

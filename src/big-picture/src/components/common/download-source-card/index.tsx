@@ -2,7 +2,7 @@ import "./styles.scss";
 
 import { MinusCircleIcon } from "@phosphor-icons/react";
 
-import { Button } from "..";
+import { Button, Checkbox } from "..";
 import type { FocusOverrides } from "../../../services";
 
 interface DownloadSourceCardProps {
@@ -15,6 +15,10 @@ interface DownloadSourceCardProps {
   removeButtonNavigationOverrides?: FocusOverrides;
   removeDisabled?: boolean;
   onRemove: () => void;
+  autoInstallEnabled?: boolean;
+  autoInstallFocusId?: string;
+  autoInstallNavigationOverrides?: FocusOverrides;
+  onAutoInstallChange?: (checked: boolean) => void;
 }
 
 export function DownloadSourceCard({
@@ -27,6 +31,10 @@ export function DownloadSourceCard({
   removeButtonNavigationOverrides,
   removeDisabled = false,
   onRemove,
+  autoInstallEnabled,
+  autoInstallFocusId,
+  autoInstallNavigationOverrides,
+  onAutoInstallChange,
 }: Readonly<DownloadSourceCardProps>) {
   return (
     <article className="download-source-card">
@@ -52,18 +60,31 @@ export function DownloadSourceCard({
           <div className="download-source-card__field-value">{url}</div>
         </div>
 
-        <Button
-          variant="secondary"
-          size="small"
-          className="download-source-card__remove-button"
-          icon={<MinusCircleIcon size={22} weight="bold" />}
-          focusId={removeButtonFocusId}
-          focusNavigationOverrides={removeButtonNavigationOverrides}
-          disabled={removeDisabled}
-          onClick={onRemove}
-        >
-          Remove
-        </Button>
+        <div className="download-source-card__actions">
+          {autoInstallFocusId && (
+            <Checkbox
+              id={`auto-install-${autoInstallFocusId}`}
+              label="Auto-install"
+              checked={autoInstallEnabled ?? true}
+              focusId={autoInstallFocusId}
+              navigationOverrides={autoInstallNavigationOverrides}
+              onChange={onAutoInstallChange}
+            />
+          )}
+
+          <Button
+            variant="secondary"
+            size="small"
+            className="download-source-card__remove-button"
+            icon={<MinusCircleIcon size={22} weight="bold" />}
+            focusId={removeButtonFocusId}
+            focusNavigationOverrides={removeButtonNavigationOverrides}
+            disabled={removeDisabled}
+            onClick={onRemove}
+          >
+            Remove
+          </Button>
+        </div>
       </div>
     </article>
   );

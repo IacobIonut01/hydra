@@ -197,7 +197,7 @@
   },
   "bottom_panel": {
     "reconnecting": "Переподключение к {{title}}…",
-    "recovering": "Восстановление {{title}}… ({{percentage}})",
+    "recovering": "Повторная загрузка сохранённой части {{title}}… ({{percentage}})",
     "no_downloads_in_progress": "Нет активных загрузок",
     "downloading_metadata": "Загрузка метаданных {{title}}…",
     "downloading": "Загрузка {{title}}… ({{percentage}} завершено) - Окончание {{eta}} - {{speed}}",
@@ -246,6 +246,7 @@
     "filters_sidebar_hint": "Используйте боковую панель для уточнения поиска",
     "active_filters": "Активные фильтры",
     "no_genres": "Без категорий",
+    "store_all": "Все",
     "mode_modern_games": "Современные игры",
     "mode_classics": "Классика",
     "platforms": "Платформы"
@@ -404,7 +405,20 @@
     "downloads_section_title": "Загрузки",
     "downloads_section_description": "Проверить наличие обновлений или других версий игры",
     "danger_zone_section_title": "Опасная зона",
-    "danger_zone_section_description": "Вы можете удалить эту игру из вашей библиотеки или файлы скачанные из Hydra",
+    "danger_zone_section_description": "Необратимые действия для этой игры",
+    "danger_zone_progress_group": "Прогресс",
+    "danger_zone_removal_group": "Удаление",
+    "danger_zone_update_action": "Обновить",
+    "danger_zone_reset_action": "Сбросить",
+    "danger_zone_update_playtime_description": "Вручную укажите, сколько времени вы играли",
+    "danger_zone_reset_playtime_description": "Обнуляет время игры для этой игры",
+    "danger_zone_reset_achievements_description": "Удаляет все полученные достижения для этой игры",
+    "danger_zone_reset_achievements_none_unlocked": "Пока нет полученных достижений",
+    "danger_zone_reset_achievements_sign_in_required": "Войдите в аккаунт, чтобы сбросить достижения",
+    "danger_zone_remove_files_description": "Удаляет скачанные файлы с вашего диска",
+    "danger_zone_remove_files_nothing_downloaded": "Для этой игры пока ничего не скачано",
+    "danger_zone_remove_files_download_in_progress": "Нельзя удалить файлы, пока идёт загрузка",
+    "danger_zone_remove_from_library_description": "Удаляет игру, её настройки и время игры из Hydra",
     "download_in_progress": "Идёт загрузка",
     "download_paused": "Загрузка приостановлена",
     "extracting": "Распаковка",
@@ -960,7 +974,8 @@
     "download_error_torbox_torrent_not_ready": "TorBox ещё готовит этот торрент. Подождите немного и попробуйте снова.",
     "download_error_torbox_link_unavailable": "TorBox не смог создать ссылку для скачивания этого торрента. Попробуйте позже.",
     "download_error_network_unreachable": "Не удалось связаться с сервером загрузки. Проверьте подключение к интернету и попробуйте снова.",
-    "download_error_network_certificate_rejected": "Не удалось проверить соединение с сервером загрузки. Антивирус или прокси может перехватывать HTTPS-трафик."
+    "download_error_network_certificate_rejected": "Не удалось проверить соединение с сервером загрузки. Антивирус или прокси может перехватывать HTTPS-трафик.",
+    "streaming_now": "Идёт трансляция"
   },
   "activation": {
     "title": "Активировать Hydra",
@@ -972,7 +987,7 @@
   },
   "downloads": {
     "reconnecting": "Переподключение…",
-    "recovering": "Восстановление загрузки… {{percentage}}",
+    "recovering": "Повторная загрузка сохранённой части… {{percentage}}",
     "resume": "Возобновить",
     "pause": "Приостановить",
     "eta": "Окончание {{eta}}",
@@ -1613,6 +1628,14 @@
     "remove_emulator": "Удалить эмулятор",
     "remove_emulator_title": "Удалить {{name}} из Hydra?",
     "remove_emulator_description": "Hydra забудет путь к {{name}} и все сопоставленные папки ROM. Сам эмулятор и ваши файлы ROM останутся на диске. Вы сможете повторно запустить настройку позже.",
+    "big_picture_launching_monitor": "Big Picture launching monitor",
+    "system_default_monitor": "System default monitor",
+    "primary_monitor": "Primary",
+    "missing_monitor": "Missing display",
+    "big_picture_output_device": "Big Picture output device",
+    "system_default_audio_device": "System default audio device",
+    "default_audio_device": "Default",
+    "missing_audio_device": "Missing audio device",
     "big_picture": "Big Picture",
     "big_picture_startup": "Запуск",
     "launch_big_picture_in_library_page": "Запускать Big Picture на странице библиотеки",
@@ -1681,7 +1704,9 @@
     "wayland_souvenirs_warning_title": "Сувениры в Wayland",
     "wayland_souvenirs_warning_description": "Из-за особенностей Wayland Hydra должна спрашивать, какое окно захватывать, при каждом запуске игры. Выберите окно игры, чтобы Hydra могла создавать сувениры при получении достижений. Без выбора окна создавать сувениры невозможно.",
     "wayland_souvenirs_warning_cancel": "Отмена",
-    "wayland_souvenirs_warning_confirm": "ОК"
+    "wayland_souvenirs_warning_confirm": "ОК",
+    "console_streaming": "Стриминг консоли",
+    "enable_console_streaming": "Включить стриминг консоли (Moonlight)"
   },
   "notifications": {
     "download_complete": "Загрузка завершена",
@@ -1726,7 +1751,13 @@
     "instructions": "Узнайте правильный способ установить любой из них на ваш дистрибутив Linux, чтобы игра могла нормально работать"
   },
   "modal": {
-    "close": "Закрыть"
+    "close": "Закрыть",
+    "stream_pairing_title": "Сопряжение устройства стриминга",
+    "stream_pairing_description": "Введите PIN-код, отображаемый на устройстве Moonlight, чтобы сопрязить его с Hydra.",
+    "stream_pairing_placeholder": "PIN",
+    "stream_pairing_submit": "Подтвердить",
+    "stream_pairing_error_invalid_pin": "Неверный PIN-код. Проверьте PIN-код на вашем устройстве и попробуйте снова.",
+    "stream_pairing_error_no_session": "Сеанс сопряжения истёк. Начните сопряжение заново с вашего устройства."
   },
   "classics_onboarding": {
     "title": "Добро пожаловать в Hydra Classics",

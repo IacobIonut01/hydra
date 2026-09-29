@@ -21,6 +21,7 @@ import { WorkWonders } from "workwonders-sdk";
 
 import {
   clearExtraction,
+  clearInstall,
   closeToast,
   failClassicsScan,
   failRetroArchScan,
@@ -30,7 +31,9 @@ import {
   hydrateRetroArchScan,
   setExtractionProgress,
   setGameRunning,
+  setInstallProgress,
   setProfileBackground,
+  setStreamingSession,
   setUserDetails,
   setUserPreferences,
   toggleDraggingDisabled,
@@ -44,10 +47,11 @@ import { ArchiveDeletionModal } from "./pages/downloads/archive-deletion-error-m
 import { CloudSubscriptionModal } from "./pages/shared-modals/hydra-cloud/cloud-subscription-modal";
 import { AddFriendModal } from "./pages/profile/profile-content/add-friend-modal";
 import { ClassicsScanModal } from "./pages/settings/emulation/classics-scan-modal";
+import { StreamPairingModal } from "./pages/shared-modals/stream-pairing-modal";
 import { RetroArchScanModal } from "./pages/settings/emulation/retroarch-scan-modal";
 import { CloudGiftNotificationModal } from "./pages/shared-modals/cloud-gift-notification-modal";
 
-import type { UserPreferences } from "@types";
+import type { GameShop, UserPreferences } from "@types";
 import "./app.scss";
 import {
   getAchievementSoundUrl,
@@ -66,6 +70,20 @@ type WorkWondersWithKnowledge = WorkWonders & {
     initKnowledgeWidget?: () => void;
     showArticle?: (articleId: number) => void;
   };
+};
+
+/**
+ * The preload's declared payload predates the catalog fields the main
+ * process attaches to the appid-carrying stream events.
+ */
+type StreamSessionEvent = {
+  event: string;
+  state?: string;
+  shop?: GameShop;
+  objectId?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
 };
 
 export function App() {
@@ -371,6 +389,40 @@ export function App() {
   }, [dispatch, library]);
 
   useEffect(() => {
+    const unsubscribe = window.electron.onStreamSessionEvent((event) => {
+      const streamEvent = event as StreamSessionEvent;
+
+      if (
+        streamEvent.event === "client-disconnected" ||
+        streamEvent.event === "stream-ended" ||
+        (streamEvent.event === "session-state" && streamEvent.state === "idle")
+      ) {
+        dispatch(setStreamingSession(null));
+        return;
+      }
+
+      // Only the events the main process matched to a catalog game carry
+      // `shop`/`objectId`.
+      if (!streamEvent.shop || !streamEvent.objectId) return;
+
+      dispatch(
+        setStreamingSession({
+          state: streamEvent.state ?? streamEvent.event,
+          shop: streamEvent.shop,
+          objectId: streamEvent.objectId,
+          width: streamEvent.width,
+          height: streamEvent.height,
+          fps: streamEvent.fps,
+        })
+      );
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
     window.electron.getActiveClassicsImport().then((snapshot) => {
       if (snapshot) dispatch(hydrateClassicsScan(snapshot));
     });
@@ -482,6 +534,46 @@ export function App() {
         showErrorToast(
           t("extraction_failed_title", { ns: "downloads" }),
           t("extraction_failed_description", { ns: "downloads" })
+        );
+      }),
+      window.electron.onInstallProgress((shop, objectId, bytesWritten) => {
+        dispatch(setInstallProgress({ shop, objectId, bytesWritten }));
+      }),
+      window.electron.onInstallComplete(() => {
+        dispatch(clearInstall());
+        updateLibrary();
+      }),
+      window.electron.onInstallFailed((_shop, _objectId, failure) => {
+        dispatch(clearInstall());
+        updateLibrary();
+
+        if (failure?.reason === "insufficient-space") {
+          showErrorToast(
+            t("install_insufficient_space_title", { ns: "downloads" }),
+            t("install_insufficient_space_description", { ns: "downloads" })
+          );
+          return;
+        }
+
+        if (failure?.reason === "needs-interaction") {
+          showErrorToast(
+            t("install_needs_interaction_title", { ns: "downloads" }),
+            t("install_needs_interaction_description", { ns: "downloads" })
+          );
+          return;
+        }
+
+        if (failure?.reason === "no-installer") {
+          showErrorToast(
+            t("install_no_installer_title", { ns: "downloads" }),
+            t("install_no_installer_description", { ns: "downloads" })
+          );
+          return;
+        }
+
+        showErrorToast(
+          t("install_failed_title", { ns: "downloads" }),
+          t("install_failed_description", { ns: "downloads" })
         );
       }),
       window.electron.onGameExecutableNotFound(() => {
@@ -719,6 +811,7 @@ export function App() {
 
       <ClassicsScanModal />
       <RetroArchScanModal />
+      <StreamPairingModal />
 
       <main>
         <Sidebar />
