@@ -16,6 +16,7 @@ import { GameShop } from "@types";
 import {
   GameExecutables,
   logger,
+  NativeAddon,
   Umu,
   WindowManager,
   runAutomaticCloudSaveSync,
@@ -418,6 +419,9 @@ export const executeGameInstaller = async (
   };
 
   if (process.platform === "win32") {
+    // Direct spawn first: it succeeds outright for installers without a
+    // requireAdministrator manifest, and for any installer when Hydra
+    // itself already runs elevated.
     const launchedDirectly = await launchInstallerDirectly(
       filePath,
       args,
@@ -428,14 +432,18 @@ export const executeGameInstaller = async (
       return true;
     }
 
-    const launchedElevated = await launchInstallerElevated(
-      filePath,
-      args,
-      options?.onExit,
-      options?.onChildSpawned
-    );
-    if (launchedElevated) {
-      return true;
+    // A failed spawn under an already-elevated Hydra means runas cannot
+    // do better -- skip straight to the interactive hand-off.
+    if (!NativeAddon.isProcessElevated()) {
+      const launchedElevated = await launchInstallerElevated(
+        filePath,
+        args,
+        options?.onExit,
+        options?.onChildSpawned
+      );
+      if (launchedElevated) {
+        return true;
+      }
     }
 
     return await fallBackToShellOpen(filePath);
