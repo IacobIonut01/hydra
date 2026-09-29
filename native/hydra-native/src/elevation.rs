@@ -72,12 +72,14 @@ pub fn relaunch_elevated(_exe_path: &str) -> Result<bool, String> {
     Err("relaunch_elevated is only supported on Windows".to_string())
 }
 
+// HANDLE is a raw pointer and therefore !Send, so the map keeps the
+// handle value as usize instead. The handle must be kept -- a
+// non-elevated caller cannot OpenProcess a handle to a high-integrity
+// child to wait on it later.
 #[cfg(target_os = "windows")]
-fn elevated_handles(
-) -> &'static std::sync::Mutex<std::collections::HashMap<u32, windows::Win32::Foundation::HANDLE>> {
-    static HANDLES: std::sync::OnceLock<
-        std::sync::Mutex<std::collections::HashMap<u32, windows::Win32::Foundation::HANDLE>>,
-    > = std::sync::OnceLock::new();
+fn elevated_handles() -> &'static std::sync::Mutex<std::collections::HashMap<u32, usize>> {
+    static HANDLES: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<u32, usize>>> =
+        std::sync::OnceLock::new();
     HANDLES.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
 }
 
@@ -134,7 +136,7 @@ pub fn spawn_elevated(exe_path: &str, args: &str, cwd: Option<&str>) -> Result<u
                 let mut handles = elevated_handles()
                     .lock()
                     .map_err(|_| "elevated handle map poisoned".to_string())?;
-                handles.insert(pid, process);
+                handles.insert(pid, process.0 as usize);
                 Ok(pid)
             }
             Err(error) if error.code() == HRESULT::from_win32(ERROR_CANCELLED.0) => {
@@ -147,16 +149,19 @@ pub fn spawn_elevated(exe_path: &str, args: &str, cwd: Option<&str>) -> Result<u
 
 #[cfg(target_os = "windows")]
 pub fn wait_elevated_exit(pid: u32) -> Result<i32, String> {
-    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
 
     let process = {
-        let mut handles = elevated_handles()
-            .lock()
-            .map_err(|_| "elevated handle map poisoned".to_string())?;
-        handles
-            .remove(&pid)
-            .ok_or_else(|| format!("no elevated process tracked for pid {pid}"))?
+        let raw = {
+            let mut handles = elevated_handles()
+                .lock()
+                .map_err(|_| "elevated handle map poisoned".to_string())?;
+            handles
+                .remove(&pid)
+                .ok_or_else(|| format!("no elevated process tracked for pid {pid}"))?
+        };
+        HANDLE(raw as *mut core::ffi::c_void)
     };
 
     unsafe {
