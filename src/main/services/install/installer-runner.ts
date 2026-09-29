@@ -294,6 +294,7 @@ const launchInstallerDirectly = async (
   onChildSpawned?: (child: ChildProcess) => void
 ): Promise<boolean> => {
   return await new Promise<boolean>((resolve) => {
+    let spawned = false;
     const child = spawn(filePath, args, {
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
@@ -303,13 +304,17 @@ const launchInstallerDirectly = async (
     collectChildStderr(child, "installer");
 
     child.once("spawn", () => {
+      spawned = true;
       onChildSpawned?.(child);
       if (!onChildSpawned) child.unref();
       resolve(true);
     });
 
     child.once("exit", (code, signal) => {
-      onExit?.(code, signal);
+      // Node fires 'exit' (negative errno code) alongside 'error' for a
+      // child that never launched; forwarding it would report a fake
+      // installer exit while the elevated fallback is still in flight.
+      if (spawned) onExit?.(code, signal);
     });
 
     child.once("error", (error) => {
@@ -353,6 +358,7 @@ const launchInstallerElevated = async (
       `-WorkingDirectory ${toPowerShellLiteral(path.dirname(filePath))} ` +
       `-ErrorAction Stop; exit $p.ExitCode`;
 
+    let spawned = false;
     const child = spawn(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-Command", command],
@@ -366,6 +372,7 @@ const launchInstallerElevated = async (
     collectChildStderr(child, "elevated installer wrapper");
 
     child.once("spawn", () => {
+      spawned = true;
       onChildSpawned?.(child);
       if (!onChildSpawned) child.unref();
       resolve(true);
@@ -373,7 +380,7 @@ const launchInstallerElevated = async (
 
     child.once("exit", (code, signal) => {
       // UAC declined surfaces as exit code 1 from the throwing Start-Process.
-      onExit?.(code, signal);
+      if (spawned) onExit?.(code, signal);
     });
 
     child.once("error", (error) => {
