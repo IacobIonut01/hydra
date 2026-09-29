@@ -5,6 +5,7 @@ import {
   net,
   powerMonitor,
   protocol,
+  screen,
 } from "electron";
 import updater from "electron-updater";
 import i18n from "i18next";
@@ -191,6 +192,17 @@ const initializeApp = async () => {
       switched: true,
     });
   });
+
+  // UAC consent (elevated installer launches) and session unlock both go
+  // through a display transition that silently drops the Big Picture zoom
+  // factor -- re-apply the saved preference when the session comes back.
+  const reapplyBigPictureUiScale = () => {
+    void WindowManager.reapplyBigPictureUiScalePreference().catch((error) =>
+      logger.warn("Failed to reapply Big Picture UI scale", error)
+    );
+  };
+  screen.on("display-metrics-changed", reapplyBigPictureUiScale);
+  powerMonitor.on("unlock-screen", reapplyBigPictureUiScale);
 
   const language = await db
     .get<string, string>(levelKeys.language, {
