@@ -434,7 +434,11 @@ export const executeGameInstaller = async (
 
     // A failed spawn under an already-elevated Hydra means runas cannot
     // do better -- skip straight to the interactive hand-off.
-    if (!NativeAddon.isProcessElevated()) {
+    if (NativeAddon.isProcessElevated()) {
+      logger.warn(
+        "[installerRunner] Direct spawn failed under an already-elevated Hydra; falling back to shell.openPath"
+      );
+    } else {
       const launchedElevated = await launchInstallerElevated(
         filePath,
         args,
@@ -444,6 +448,9 @@ export const executeGameInstaller = async (
       if (launchedElevated) {
         return true;
       }
+      logger.warn(
+        "[installerRunner] Elevated launch failed; falling back to shell.openPath"
+      );
     }
 
     return await fallBackToShellOpen(filePath);
