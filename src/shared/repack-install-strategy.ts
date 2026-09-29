@@ -99,15 +99,26 @@ export const resolveRepackInstallStrategy = (
  */
 export const buildInnoSilentArgs = (
   installDir: string,
-  logPath: string
-): string[] => [
-  "/VERYSILENT",
-  "/SUPPRESSMSGBOXES",
-  "/NORESTART",
-  "/SP-",
-  `/DIR="${installDir}"`,
-  `/LOG="${logPath}"`,
-];
+  logPath: string,
+  language?: string
+): string[] => {
+  const args = [
+    "/VERYSILENT",
+    "/SUPPRESSMSGBOXES",
+    "/NORESTART",
+    "/SP-",
+    `/DIR="${installDir}"`,
+    `/LOG="${logPath}"`,
+  ];
+
+  // Multi-language Inno setups paint a "Select Setup Language" dialog even
+  // under /VERYSILENT -- /LANG is the only flag that suppresses it. When the
+  // repack has no matching language the installer exits fast with no
+  // evidence, so callers retry once without it before escalating.
+  if (language) args.push(`/LANG="${language}"`);
+
+  return args;
+};
 
 /** Folder-name-safe version of a game title for install dir conventions. */
 export const sanitizeInstallDirName = (title: string): string => {

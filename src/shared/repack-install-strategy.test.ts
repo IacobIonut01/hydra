@@ -97,6 +97,14 @@ describe("buildInnoSilentArgs", () => {
     assert.ok(args.includes('/DIR="D:\\Games\\My Game"'));
     assert.ok(args.includes('/LOG="C:\\logs\\i.log"'));
   });
+
+  it("appends /LANG only when a language is provided", () => {
+    const withLang = buildInnoSilentArgs("D:\\G", "C:\\l.log", "english");
+    assert.ok(withLang.includes('/LANG="english"'));
+
+    const withoutLang = buildInnoSilentArgs("D:\\G", "C:\\l.log");
+    assert.ok(!withoutLang.some((arg) => arg.startsWith("/LANG")));
+  });
 });
 
 describe("sanitizeInstallDirName", () => {

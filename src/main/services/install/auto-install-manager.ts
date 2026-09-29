@@ -314,11 +314,15 @@ const waitForInnoUninstallMarker = (
   });
 
 /**
- * DODI-style wrappers paint a key-gated splash before Inno proper: the
- * installer window must be focused and sent Up + Enter to unlock the
- * wizard. Poll for the window, fire the chord once when it appears, and
- * stop -- repeat sends could advance a real wizard page unintentionally.
- * Returns a disposer; the chord best-effort depends on the native addon.
+ * Installer windows that steal focus during a silent run are always
+ * blockers: DODI-style wrappers paint a key-gated splash before Inno
+ * proper, and multi-language repackers can still pop the Select Language
+ * dialog. The same chord answers both -- Up then Enter -- so the watcher
+ * polls for the window, fires the chord once when it appears, and stops.
+ * Repeat sends could advance a real wizard page unintentionally.
+ * Returns a disposer; the chord best-effort depends on the native addon
+ * and on Hydra running at the same integrity level as the installer
+ * (SendInput cannot reach an elevated installer from a non-elevated app).
  */
 const watchForSplashAndUnlock = (installerPath: string): (() => void) => {
   const exeName = path.basename(installerPath);
@@ -540,14 +544,6 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
     stopSplashWatch: null,
   };
 
-  const strategy = resolveRepackInstallStrategy({
-    downloadSourceName: download.downloadSourceName,
-    repackTitle: download.repackTitle,
-  });
-  if (strategy === "splash-unlock" && process.platform === "win32") {
-    activeInstall.stopSplashWatch = watchForSplashAndUnlock(installer.path);
-  }
-
   if (
     userPreferences?.pauseSeedingWhileInstalling &&
     download.shouldSeed &&
@@ -639,15 +635,26 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
     }
   };
 
-  const runInstallerAttempt = (silent: boolean): Promise<void> => {
+  const runInstallerAttempt = (
+    silent: boolean,
+    withLanguageParam = true
+  ): Promise<void> => {
     return new Promise<void>((resolveAttempt) => {
       activeInstall!.attemptStartedAt = Date.now();
       const args = silent
         ? buildInnoSilentArgs(
             toInstallerDirArg(installDirPath, winePrefixPath),
-            toInstallerDirArg(innoLogPath, winePrefixPath)
+            toInstallerDirArg(innoLogPath, winePrefixPath),
+            withLanguageParam ? "english" : undefined
           )
         : [];
+
+      if (silent && process.platform === "win32") {
+        activeInstall!.stopSplashWatch?.();
+        activeInstall!.stopSplashWatch = watchForSplashAndUnlock(
+          installer.path
+        );
+      }
 
       void executeGameInstaller(installer.path, {
         args,
@@ -704,6 +711,19 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
                 : false;
 
               if (!silentTook) {
+                if (withLanguageParam) {
+                  // Inno aborts when /LANG names a language the repack
+                  // does not ship -- indistinguishable from rejected flags
+                  // at this speed, so retry silently without it once
+                  // before calling the flags rejected.
+                  logger.info(
+                    `[AutoInstallManager] Silent install for ${gameKey} failed fast with /LANG (code=${code}); retrying without the language override`
+                  );
+                  await runInstallerAttempt(true, false);
+                  resolveAttempt();
+                  return;
+                }
+
                 if (interactiveAllowed) {
                   logger.info(
                     `[AutoInstallManager] Silent install for ${gameKey} did not take (code=${code}, ranMs=${ranMs}); retrying interactively`
