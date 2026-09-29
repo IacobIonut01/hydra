@@ -297,6 +297,11 @@ const launchInstallerDirectly = async (
   return await new Promise<boolean>((resolve) => {
     let spawned = false;
     const child = spawn(filePath, args, {
+      // Old Inno SetupLdr builds (the repacker forks on FitGirl/DODI
+      // installers) locate fg-*.bin via the current directory, not the
+      // exe's own folder -- a spawn inheriting Hydra's cwd exits 1
+      // before /LOG ever opens.
+      cwd: path.dirname(filePath),
       detached: true,
       stdio: ["ignore", "ignore", "pipe"],
       shell: false,

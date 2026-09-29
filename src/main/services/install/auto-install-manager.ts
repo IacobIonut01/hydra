@@ -773,6 +773,9 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
           : [];
 
         if (silent) {
+          // A /LOG left behind by an earlier run would masquerade as this
+          // attempt's Inno evidence -- start each attempt from a clean file.
+          fs.rmSync(innoLogPath, { force: true });
           logger.info(
             `[AutoInstallManager] Silent install args for ${gameKey}: ${args.join(" ")}`
           );
