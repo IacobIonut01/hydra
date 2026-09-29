@@ -98,6 +98,26 @@ pub fn relaunch_elevated(exe_path: String) -> napi::Result<bool> {
 }
 
 #[napi]
+pub async fn spawn_elevated(
+    exe_path: String,
+    args: String,
+    cwd: Option<String>,
+) -> napi::Result<u32> {
+    tokio::task::spawn_blocking(move || elevation::spawn_elevated(&exe_path, &args, cwd.as_deref()))
+        .await
+        .map_err(|err| Error::from_reason(err.to_string()))?
+        .map_err(Error::from_reason)
+}
+
+#[napi]
+pub async fn wait_elevated_exit(pid: u32) -> napi::Result<i32> {
+    tokio::task::spawn_blocking(move || elevation::wait_elevated_exit(pid))
+        .await
+        .map_err(|err| Error::from_reason(err.to_string()))?
+        .map_err(Error::from_reason)
+}
+
+#[napi]
 pub fn send_text_input(text: String) -> napi::Result<bool> {
     input::send_text_input(&text).map_err(Error::from_reason)
 }

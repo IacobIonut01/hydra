@@ -141,6 +141,12 @@ type HydraNativeModule = {
   getLinuxActiveWindow: () => NativeActiveWindowResponse | null;
   isProcessElevated?: () => boolean;
   relaunchElevated?: (exePath: string) => boolean;
+  spawnElevated?: (
+    exePath: string,
+    args: string,
+    cwd?: string
+  ) => Promise<number>;
+  waitElevatedExit?: (pid: number) => Promise<number>;
   sendTextInput?: (text: string) => boolean;
   sendVirtualKeyChord?: (virtualKeys: number[]) => boolean;
   isTextInputFocused?: () => boolean;
@@ -513,6 +519,26 @@ export class NativeAddon {
       logger.error("Failed to relaunch elevated", error);
       return false;
     }
+  }
+
+  public static async spawnElevated(
+    exePath: string,
+    args: string,
+    cwd?: string
+  ): Promise<number> {
+    const fn = this.load().spawnElevated;
+    if (!fn) {
+      throw new Error("spawn_elevated is not available in this build");
+    }
+    return await fn(exePath, args, cwd);
+  }
+
+  public static async waitElevatedExit(pid: number): Promise<number> {
+    const fn = this.load().waitElevatedExit;
+    if (!fn) {
+      throw new Error("wait_elevated_exit is not available in this build");
+    }
+    return await fn(pid);
   }
 
   public static sendTextInput(text: string): boolean {

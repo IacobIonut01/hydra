@@ -306,6 +306,13 @@ const launchInstallerDirectly = async (
       stdio: ["ignore", "ignore", "pipe"],
       shell: false,
       windowsHide: true,
+      // Inno parses the RAW command line with its own tokenizer -- it
+      // does not understand CommandLineToArgvW \" escaping. Node's
+      // default quoting rewrites /DIR="..." /LOG="..." into
+      // /DIR=\"...\" which Inno reads as garbage, and the mangled /LOG
+      // target aborts the run before logging ever opens. Verbatim args
+      // hand Inno exactly the string ProcessStartInfo produces.
+      windowsVerbatimArguments: true,
     });
     collectChildStderr(child, "installer");
 
@@ -332,75 +339,43 @@ const launchInstallerDirectly = async (
 
 // Repack Inno setups carry a requireAdministrator manifest, so a
 // non-elevated Hydra cannot spawn them -- CreateProcess returns
-// ERROR_ELEVATION_REQUIRED. ProcessStartInfo with Verb=runas is the
-// supported way to elevate from a non-elevated parent AND it preserves
-// our Inno silent args, which shell.openPath would drop. WaitForExit
-// lets the (non-elevated) powershell wrapper observe the elevated
-// child's exit code, so the install pipeline still gets a real
-// completion signal.
-const toPowerShellLiteral = (value: string) => `'${value.replace(/'/g, "''")}'`;
-
+// ERROR_ELEVATION_REQUIRED. The native spawn_elevated binding drives
+// ShellExecuteEx(runas) directly -- the same mechanism .NET
+// ProcessStartInfo(Verb=runas) uses, with no powershell, no wildcard
+// parsing of names like "Cuphead [FitGirl Repack]", and no argument
+// re-quoting: Inno receives the silent args verbatim, which
+// shell.openPath would drop. wait_elevated_exit blocks on the process
+// handle, so the pipeline still gets the real completion signal.
 const launchInstallerElevated = async (
   filePath: string,
   args: string[],
   onExit?: (code: number | null, signal: NodeJS.Signals | null) => void,
   onChildSpawned?: (child: ChildProcess) => void
 ): Promise<boolean> => {
-  return await new Promise<boolean>((resolve) => {
-    // ProcessStartInfo, not Start-Process: Start-Process lacks
-    // -LiteralPath in every PowerShell version and -FilePath resolves
-    // the [] wildcard metacharacters in names like
-    // "Cuphead [FitGirl Repack]", so either spelling dies before runas
-    // ever runs. FileName is taken literally, WorkingDirectory keeps
-    // the elevated child out of system32 (repacker [Code] that locates
-    // fg-*.bin via cwd aborts before /LOG opens), and Arguments goes as
-    // ONE verbatim string so quoted /DIR="..." /LOG="..." survive.
-    const argumentList = args.join(" ");
-    // The try/catch matters: without it a declined UAC throws, $p stays
-    // $null, and `exit $p.ExitCode` exits 0 -- falsely reporting a clean
-    // install exit for a launch that never happened.
-    const command =
-      `$ErrorActionPreference = 'Stop'; ` +
-      `$psi = New-Object System.Diagnostics.ProcessStartInfo(` +
-      `${toPowerShellLiteral(filePath)}, ${toPowerShellLiteral(argumentList)}` +
-      `); ` +
-      `$psi.Verb = 'runas'; ` +
-      `$psi.UseShellExecute = $true; ` +
-      `$psi.WorkingDirectory = ${toPowerShellLiteral(path.dirname(filePath))}; ` +
-      `try { $p = [System.Diagnostics.Process]::Start($psi) } ` +
-      `catch { Write-Error $_.Exception.Message; exit 1 } ` +
-      `$p.WaitForExit(); exit $p.ExitCode`;
-
-    let spawned = false;
-    const child = spawn(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-Command", command],
-      {
-        detached: true,
-        stdio: ["ignore", "pipe", "pipe"],
-        shell: false,
-        windowsHide: true,
-      }
+  void onChildSpawned;
+  try {
+    const pid = await NativeAddon.spawnElevated(
+      filePath,
+      args.join(" "),
+      // Repacker Inno forks locate fg-*.bin via the current directory,
+      // not the exe's own folder -- a wrong cwd aborts before /LOG.
+      path.dirname(filePath)
     );
-    collectChildStderr(child, "elevated installer wrapper");
 
-    child.once("spawn", () => {
-      spawned = true;
-      onChildSpawned?.(child);
-      if (!onChildSpawned) child.unref();
-      resolve(true);
-    });
+    void NativeAddon.waitElevatedExit(pid)
+      .then((code) => onExit?.(code, null))
+      .catch((error) => {
+        logger.error("Failed waiting on elevated installer", error);
+        onExit?.(null, null);
+      });
 
-    child.once("exit", (code, signal) => {
-      // UAC declined surfaces as exit code 1 from the throwing Start-Process.
-      if (spawned) onExit?.(code, signal);
-    });
-
-    child.once("error", (error) => {
-      logger.error("Failed to launch installer elevated via powershell", error);
-      resolve(false);
-    });
-  });
+    return true;
+  } catch (error) {
+    // "elevation denied by user" is the UAC-decline branch; anything
+    // else means the native launch itself could not run.
+    logger.error("Failed to launch installer elevated", error);
+    return false;
+  }
 };
 
 const openPathAndCheck = async (filePath: string): Promise<boolean> => {
