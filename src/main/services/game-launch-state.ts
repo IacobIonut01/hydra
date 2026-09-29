@@ -190,6 +190,11 @@ export const markGameRunning = (gameKey: string) => {
   launch.bigPictureHideTimer = setTimeout(() => {
     launch.bigPictureHideTimer = null;
 
+    // The entry may have been cleared by an early close (e.g. a launcher
+    // wrapper exiting while the game keeps running) — hiding BP for a stale
+    // launch would leave it hidden with no restore path.
+    if (trackedLaunches.get(gameKey) !== launch) return;
+
     const bigPicture = WindowManager.bigPictureWindow;
     if (bigPicture?.isVisible()) {
       bigPicture.hide();
@@ -218,21 +223,25 @@ export const clearGameLaunch = (gameKey: string) => {
   const launch = trackedLaunches.get(gameKey);
   trackedLaunches.delete(gameKey);
   cancelledGameKeys.delete(gameKey);
-  if (!launch) return;
-
-  clearTimers(launch);
-
-  if (!launch.bigPictureHidden) return;
+  if (launch) clearTimers(launch);
 
   const bigPicture = WindowManager.bigPictureWindow;
   if (!bigPicture) return;
 
-  if (!bigPicture.isVisible()) {
-    bigPicture.show();
-  }
+  // Nothing else hides the BP window, so a hidden BP on game exit was hidden
+  // for gameplay — restore it even when the tracked flag didn't survive. A
+  // visible BP only gets pulled forward for launches that came from BP.
+  const hidden = !bigPicture.isVisible();
+  if (!hidden && launch?.launchSource !== "big-picture") return;
+
+  if (hidden) bigPicture.show();
+  if (bigPicture.isMinimized()) bigPicture.restore();
   bigPicture.focus();
-  bigPicture.webContents.send(
-    "on-navigate",
-    `/big-picture/game/${launch.shop}/${launch.objectId}`
-  );
+
+  if (launch?.launchSource === "big-picture") {
+    bigPicture.webContents.send(
+      "on-navigate",
+      `/big-picture/game/${launch.shop}/${launch.objectId}`
+    );
+  }
 };
