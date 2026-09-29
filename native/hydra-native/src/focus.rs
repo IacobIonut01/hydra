@@ -99,7 +99,8 @@ pub fn is_text_input_focused() -> bool {
 pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
     use std::collections::HashSet;
     use std::mem::size_of;
-    use windows::Win32::Foundation::{BOOL, CloseHandle, HWND, LPARAM, TRUE};
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM};
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW,
         Process32NextW, TH32CS_SNAPPROCESS,
@@ -172,7 +173,7 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
                 }
             }
         }
-        TRUE
+        BOOL(1)
     }
 
     unsafe {

@@ -119,6 +119,7 @@ mod linux {
     use x11rb::protocol::xproto::ConnectionExt;
     use x11rb::protocol::xtest::ConnectionExt as XTestConnectionExt;
     use x11rb::rust_connection::RustConnection;
+    use x11rb::wrapper::ConnectionExt as WrapperConnectionExt;
 
     const KEY_PRESS: u8 = 2;
     const KEY_RELEASE: u8 = 3;

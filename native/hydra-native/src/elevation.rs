@@ -40,7 +40,7 @@ pub fn is_process_elevated() -> bool {
 #[cfg(target_os = "windows")]
 pub fn relaunch_elevated(exe_path: &str) -> Result<bool, String> {
     use std::os::windows::ffi::OsStrExt;
-    use windows::core::w;
+    use windows::core::{w, HRESULT};
     use windows::Win32::Foundation::{ERROR_CANCELLED, HWND};
     use windows::Win32::UI::Shell::{ShellExecuteExW, SHELLEXECUTEINFOW};
 
@@ -62,10 +62,7 @@ pub fn relaunch_elevated(exe_path: &str) -> Result<bool, String> {
         match ShellExecuteExW(&mut info) {
             Ok(()) => Ok(true),
             Err(error)
-                if error.code()
-                    == windows::Win32::Foundation::HRESULT::from_win32(
-                        ERROR_CANCELLED.0 as i32,
-                    ) =>
+                if error.code() == HRESULT::from_win32(ERROR_CANCELLED.0) =>
             {
                 Ok(false)
             }
