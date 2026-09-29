@@ -10,10 +10,10 @@ import {
 import type { LibraryGame, ShopDetailsWithAssets } from "@types";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import {
+import type {
   FocusOverrides,
   FocusOverrideTarget,
-} from "src/big-picture/src/services/navigation.service";
+} from "../../../../services";
 import {
   animateNavigationScrollForElement,
   resolvePreferredGameAssets,
