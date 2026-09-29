@@ -216,6 +216,8 @@ export interface UserPreferences {
   bigPictureVirtualKeyboardEnabled?: boolean;
   bigPictureDiagnosticsEnabled?: boolean;
   bigPictureDiagnosticsPosition?: BigPictureDiagnosticsPosition;
+  bigPictureGameModeEnabled?: boolean;
+  bigPictureInGameKeyboardEnabled?: boolean;
   maxDownloadSpeedBytesPerSecond?: number | null;
   torrentNetworkInterface?: string | null;
   globalTrackers?: string[];

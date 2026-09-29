@@ -8,6 +8,7 @@ export * from "./use-library-game-state";
 export * from "./use-dominant-color.hook";
 export * from "./use-user-details.hook";
 export * from "./use-gamepad.hook";
+export * from "./use-in-game-keyboard.hook";
 export * from "./use-feature.hook";
 export * from "./use-user-preferences.hook";
 export * from "./use-navigation.hook";

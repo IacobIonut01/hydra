@@ -41,6 +41,7 @@ fn emit_event(emitter: &Emitter, ev: ControllerEvent) {
 
 struct Runtime {
     hid: Mutex<Option<HidApi>>,
+    hid_error: Mutex<Option<String>>,
     sessions: RwLock<HashMap<String, Arc<SessionHandle>>>,
     emitter: Emitter,
     monitor_started: AtomicBool,
@@ -51,6 +52,7 @@ static RUNTIME: OnceLock<Runtime> = OnceLock::new();
 fn runtime() -> &'static Runtime {
     RUNTIME.get_or_init(|| Runtime {
         hid: Mutex::new(None),
+        hid_error: Mutex::new(None),
         sessions: RwLock::new(HashMap::new()),
         emitter: Arc::new(Mutex::new(None)),
         monitor_started: AtomicBool::new(false),
@@ -60,9 +62,16 @@ fn runtime() -> &'static Runtime {
 fn hid_api() -> napi::Result<std::sync::MutexGuard<'static, Option<HidApi>>> {
     let mut guard = runtime().hid.lock().unwrap();
     if guard.is_none() {
-        *guard = Some(HidApi::new().map_err(|e| {
-            Error::from_reason(format!("hidapi init failed: {e}"))
-        })?);
+        match HidApi::new() {
+            Ok(api) => {
+                *guard = Some(api);
+                *runtime().hid_error.lock().unwrap() = None;
+            }
+            Err(e) => {
+                *runtime().hid_error.lock().unwrap() = Some(e.to_string());
+                return Err(Error::from_reason(format!("hidapi init failed: {e}")));
+            }
+        }
     }
     Ok(guard)
 }
@@ -496,6 +505,13 @@ pub fn controller_set_hidden(id: String, enabled: bool) -> bool {
 #[napi]
 pub fn controller_hiding_support() -> String {
     hide::probe_support().to_string()
+}
+
+/// Last hidapi init failure, if any — lets the service tell "no pads
+/// present" apart from "HID backend broken" for diagnostics.
+#[napi]
+pub fn controller_backend_error() -> Option<String> {
+    runtime().hid_error.lock().unwrap().clone()
 }
 
 #[napi]

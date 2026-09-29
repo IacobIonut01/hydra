@@ -2,6 +2,9 @@ mod active_window;
 mod cloud_save;
 mod constants;
 mod controller;
+mod elevation;
+mod focus;
+mod input;
 mod torrent;
 
 pub use cloud_save::hashing::{build_snapshot_aggregate_hash, hash_local_save_file};
@@ -80,6 +83,36 @@ pub struct NativeAudioDeviceDefaults {
 pub struct NativeActiveWindow {
     pub window_id: String,
     pub process_id: Option<u32>,
+}
+
+#[napi]
+pub fn is_process_elevated() -> bool {
+    elevation::is_process_elevated()
+}
+
+#[napi]
+pub fn relaunch_elevated(exe_path: String) -> napi::Result<bool> {
+    elevation::relaunch_elevated(&exe_path).map_err(Error::from_reason)
+}
+
+#[napi]
+pub fn send_text_input(text: String) -> napi::Result<bool> {
+    input::send_text_input(&text).map_err(Error::from_reason)
+}
+
+#[napi]
+pub fn send_virtual_key_chord(virtual_keys: Vec<u32>) -> napi::Result<bool> {
+    input::send_virtual_key_chord(&virtual_keys).map_err(Error::from_reason)
+}
+
+#[napi]
+pub fn is_text_input_focused() -> bool {
+    focus::is_text_input_focused()
+}
+
+#[napi]
+pub fn focus_game_window(executable_names: Vec<String>) -> napi::Result<bool> {
+    focus::focus_game_window(&executable_names).map_err(Error::from_reason)
 }
 
 #[napi]

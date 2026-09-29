@@ -14,6 +14,7 @@ import { abortAchievementMetadataExport } from "./achievements/metadata-export";
 import { INTERVALS } from "@main/constants";
 import { Wine } from "./wine";
 import { NativeAddon } from "./native-addon";
+import { syncKeyboardOverlayWatcher } from "./keyboard-overlay-watcher";
 import { emulatorSessions } from "./emulators/emulator-session-tracker";
 import { launchedGamePids } from "./launched-game-pids";
 import {
@@ -57,6 +58,7 @@ import {
   prepareLinuxGameCaptureSession,
   stopLinuxGameCaptureSession,
 } from "./linux-game-capture-session";
+import { clearGameLaunch, markGameRunning } from "./game-launch-state";
 import { updateGameRecord } from "./game-record-updater";
 import { GameExecutables } from "./game-executables";
 
@@ -400,7 +402,13 @@ export const watchProcesses = async () => {
 
   currentTick++;
 
-  WindowManager.sendToAppWindows("on-games-running", getGamesRunning());
+  const gamesRunning = getGamesRunning();
+  if (gamesRunning.length === 0) {
+    WindowManager.hideKeyboardOverlay();
+  }
+  syncKeyboardOverlayWatcher(gamesRunning.length > 0);
+
+  WindowManager.sendToAppWindows("on-games-running", gamesRunning);
 };
 
 async function onOpenGame(game: Game, matchedPath: string) {
@@ -471,6 +479,8 @@ async function onOpenGame(game: Game, matchedPath: string) {
     performanceNow: now,
     matchedPath,
   });
+
+  markGameRunning(gameKey);
 
   // On Linux, keep the launcher visible briefly and let it auto-close itself.
   if (process.platform !== "linux") {
@@ -624,6 +634,7 @@ const onCloseGame = (game: Game) => {
   const gamePlaytime = gamesPlaytime.get(gameKey)!;
   deleteGamePlaytime(gameKey);
   launchedGamePids.delete(gameKey);
+  clearGameLaunch(gameKey);
   stopLinuxGameCaptureSession(gameKey);
   PowerSaveBlockerManager.markGameClosed(gameKey);
   abortAchievementMetadataExport(gameKey);

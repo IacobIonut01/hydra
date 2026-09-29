@@ -17,6 +17,7 @@ import "./open-checkout";
 import "./open-external";
 import "./open-folder";
 import "./open-main-window";
+import "./relaunch-as-admin";
 import "./reset-common-redist-preflight";
 import "./save-temp-file";
 import "./show-item-in-folder";

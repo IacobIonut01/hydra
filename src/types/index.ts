@@ -489,6 +489,44 @@ export interface GameLauncherStatusPayload {
   detail: string | null;
 }
 
+export type GameLaunchPhase =
+  | "preparing"
+  | "syncing-saves"
+  | "checking-redistributables"
+  | "exporting-achievements"
+  | "launching"
+  | "awaiting-process"
+  | "running"
+  | "failed";
+
+export type GameLaunchErrorCode =
+  | "executable-not-found"
+  | "spawn-failed"
+  | "wine-failed"
+  | "steam-protocol-failed"
+  | "cloud-save-blocked"
+  | "process-not-detected"
+  | "cancelled";
+
+export interface GameLaunchState {
+  gameKey: string;
+  shop: GameShop;
+  objectId: string;
+  phase: GameLaunchPhase;
+  error: GameLaunchErrorCode | null;
+  detail: string | null;
+}
+
+export type GameLaunchResult =
+  | { status: "launched"; pid: number | null }
+  | { status: "blocked" }
+  | { status: "cancelled" }
+  | {
+      status: "failed";
+      error: GameLaunchErrorCode;
+      detail?: string | null;
+    };
+
 export interface AchievementNotificationInfo {
   title: string;
   description?: string;
@@ -752,3 +790,4 @@ export type InstallFailure =
   | { reason: "aborted" }
   | { reason: "unsupported"; message?: string }
   | { reason: "needs-interaction" };
+export * from "./virtual-keys";

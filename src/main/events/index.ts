@@ -17,6 +17,7 @@ import "./connectivity";
 import "./download-sources";
 import "./friends";
 import "./hardware";
+import "./keyboard-overlay";
 import "./library";
 import "./leveldb";
 import "./main-window-controls";

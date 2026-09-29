@@ -10,7 +10,7 @@ const openGame = async (
   launchOptions?: string | null,
   launchSource: LaunchSource = "default"
 ) => {
-  await launchGame({
+  return launchGame({
     shop,
     objectId,
     executablePath,

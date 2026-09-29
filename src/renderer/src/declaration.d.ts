@@ -78,6 +78,8 @@ import type {
   ArtworkPage,
   GameArtworkSelection,
   GameLauncherStatusPayload,
+  GameLaunchResult,
+  GameLaunchState,
   CloudSaveAutomaticSyncModeChangedEvent,
   CloudSaveAutomaticSyncEvent,
   CloudSaveConflictResolution,
@@ -490,7 +492,7 @@ declare global {
       executablePath: string,
       launchOptions?: string | null,
       launchSource?: LaunchSource
-    ) => Promise<void>;
+    ) => Promise<GameLaunchResult>;
     openClassicsGame: (
       shop: GameShop,
       objectId: string,
@@ -511,6 +513,15 @@ declare global {
     ) => Promise<LibraryGame>;
     getEmulatorRomExtensions: (system: EmulatorSystem) => Promise<string[]>;
     closeGame: (shop: GameShop, objectId: string) => Promise<boolean>;
+    cancelGameLaunch: (shop: GameShop, objectId: string) => Promise<void>;
+    getGameLaunchState: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<GameLaunchState | null>;
+    focusRunningGame: (shop: GameShop, objectId: string) => Promise<boolean>;
+    onGameLaunchState: (
+      cb: (state: GameLaunchState) => void
+    ) => () => Electron.IpcRenderer;
     removeGameFromLibrary: (shop: GameShop, objectId: string) => Promise<void>;
     removeGame: (shop: GameShop, objectId: string) => Promise<void>;
     deleteGameFolder: (shop: GameShop, objectId: string) => Promise<unknown>;
@@ -972,6 +983,13 @@ declare global {
     getDisplays: () => Promise<HydraDisplay[]>;
     getAudioDevices: () => Promise<HydraAudioDevice[]>;
     getNetworkInterfaces: () => Promise<NetworkInterface[]>;
+    isProcessElevated: () => Promise<boolean>;
+    relaunchAsAdmin: () => Promise<boolean>;
+    showKeyboardOverlay: () => Promise<void>;
+    hideKeyboardOverlay: () => Promise<void>;
+    toggleKeyboardOverlay: () => Promise<boolean>;
+    sendTextInput: (text: string) => Promise<void>;
+    sendVirtualKeyChord: (virtualKeys: number[]) => Promise<void>;
 
     /* Cloud save */
     uploadSaveGame: (

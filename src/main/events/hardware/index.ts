@@ -3,3 +3,4 @@ import "./get-disk-free-space";
 import "./get-audio-devices";
 import "./get-displays";
 import "./get-network-interfaces";
+import "./is-process-elevated";

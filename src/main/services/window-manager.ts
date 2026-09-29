@@ -92,6 +92,12 @@ export class WindowManager {
     return this.gameLauncherWindowInstance;
   }
 
+  public static get bigPictureWindow(): Electron.BrowserWindow | null {
+    return this.bigPicture && !this.bigPicture.isDestroyed()
+      ? this.bigPicture
+      : null;
+  }
+
   public static clearMainWindow(): void {
     this.mainWindowInstance = null;
   }
@@ -616,6 +622,7 @@ export class WindowManager {
       webPreferences: {
         preload: path.join(__dirname, "../preload/index.mjs"),
         sandbox: false,
+        backgroundThrottling: false,
       },
     });
 
@@ -674,6 +681,122 @@ export class WindowManager {
         logger.warn("Failed to restore Big Picture session settings", error);
       });
     });
+  }
+
+  private static keyboardOverlayWindow: Electron.BrowserWindow | null = null;
+
+  private static getKeyboardOverlayBounds(): Electron.Rectangle {
+    const targetDisplay =
+      this.bigPicture && !this.bigPicture.isDestroyed()
+        ? screen.getDisplayMatching(this.bigPicture.getBounds())
+        : screen.getPrimaryDisplay();
+    const area =
+      process.platform === "linux"
+        ? targetDisplay.workArea
+        : targetDisplay.bounds;
+
+    const width = Math.min(1400, Math.max(720, area.width - 96));
+    const height = Math.min(440, Math.max(320, Math.round(area.height * 0.45)));
+
+    return {
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + area.height - height - 24,
+      width,
+      height,
+    };
+  }
+
+  public static createKeyboardOverlayWindow() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed()
+    ) {
+      return this.keyboardOverlayWindow;
+    }
+
+    this.keyboardOverlayWindow = new BrowserWindow({
+      ...this.getKeyboardOverlayBounds(),
+      icon,
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      webPreferences: {
+        preload: path.join(__dirname, "../preload/index.mjs"),
+        sandbox: false,
+        backgroundThrottling: false,
+      },
+    });
+
+    this.keyboardOverlayWindow.setAlwaysOnTop(true, "screen-saver");
+    this.keyboardOverlayWindow.setVisibleOnAllWorkspaces(true, {
+      visibleOnFullScreen: true,
+    });
+    this.keyboardOverlayWindow.removeMenu();
+    this.keyboardOverlayWindow.setMenu(null);
+
+    this.loadWindowURL(
+      this.keyboardOverlayWindow,
+      "big-picture/keyboard-overlay"
+    );
+
+    this.keyboardOverlayWindow.on("closed", () => {
+      this.keyboardOverlayWindow = null;
+    });
+
+    return this.keyboardOverlayWindow;
+  }
+
+  public static showKeyboardOverlay() {
+    const window = this.createKeyboardOverlayWindow();
+
+    window.setBounds(this.getKeyboardOverlayBounds());
+    window.showInactive();
+  }
+
+  public static hideKeyboardOverlay() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed()
+    ) {
+      this.keyboardOverlayWindow.hide();
+    }
+  }
+
+  public static toggleKeyboardOverlay() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed() &&
+      this.keyboardOverlayWindow.isVisible()
+    ) {
+      this.hideKeyboardOverlay();
+      return false;
+    }
+
+    this.showKeyboardOverlay();
+    return true;
+  }
+
+  public static isKeyboardOverlayVisible(): boolean {
+    return (
+      !!this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed() &&
+      this.keyboardOverlayWindow.isVisible()
+    );
+  }
+
+  public static closeKeyboardOverlayWindow() {
+    if (
+      this.keyboardOverlayWindow &&
+      !this.keyboardOverlayWindow.isDestroyed()
+    ) {
+      this.keyboardOverlayWindow.close();
+      this.keyboardOverlayWindow = null;
+    }
   }
 
   public static async applyBigPictureDisplayPreference(

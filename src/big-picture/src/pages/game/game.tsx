@@ -586,6 +586,7 @@ export default function Game() {
     preferredAssets,
     openGame,
     closeGame,
+    returnToGame,
     toggleFavorite,
     updateGame,
     refreshGameDetails,
@@ -1478,6 +1479,7 @@ export default function Game() {
             onOpenDownloadOptions={handleOpenDownloadModal}
             onOpenSettings={() => setIsGameSettingsModalOpen(true)}
             onClose={closeGame}
+            onReturnToGame={returnToGame}
             isAddingToLibrary={isAddingToLibrary}
             canAddToLibrary={canAddToLibrary}
             downNavigationTarget={contentBelowHeroTarget}

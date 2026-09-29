@@ -14,7 +14,12 @@ import {
   Sidebar,
 } from "./layout";
 import { IS_DESKTOP } from "./constants";
-import { useBigPictureToast, useNavigation, useUserPreferences } from "./hooks";
+import {
+  useBigPictureToast,
+  useInGameKeyboardChord,
+  useNavigation,
+  useUserPreferences,
+} from "./hooks";
 import {
   HorizontalFocusGroup,
   InputModeProvider,
@@ -58,6 +63,8 @@ export default function App() {
   const leftSidebarTargetId = activeGameRoute
     ? getBigPictureSidebarLibraryGameFocusId(activeGameRoute)
     : (activeSidebarItemId ?? BIG_PICTURE_SIDEBAR_ITEM_IDS.library);
+  const isKeyboardOverlayRoute = pathname.endsWith("/keyboard-overlay");
+  useInGameKeyboardChord(!isKeyboardOverlayRoute);
   const contentNavigationOverrides: FocusOverrides = {
     left: getItemFocusTarget(leftSidebarTargetId),
   };
@@ -239,6 +246,21 @@ export default function App() {
         inputMode === "gamepad"
     );
   }, [userPreferences?.bigPictureSoundsEnabled, inputMode]);
+
+  if (isKeyboardOverlayRoute) {
+    return (
+      <Fragment>
+        <NavigationStateBridge />
+        <NavigationInputProvider>
+          <div id="big-picture">
+            <BigPictureI18nBridge />
+            <Outlet />
+            <InputModeProvider />
+          </div>
+        </NavigationInputProvider>
+      </Fragment>
+    );
+  }
 
   return (
     <Fragment>

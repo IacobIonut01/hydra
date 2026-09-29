@@ -125,6 +125,12 @@ type HydraNativeModule = {
     defaults: NativeAudioDeviceDefaults
   ) => boolean;
   getLinuxActiveWindow: () => NativeActiveWindowResponse | null;
+  isProcessElevated?: () => boolean;
+  relaunchElevated?: (exePath: string) => boolean;
+  sendTextInput?: (text: string) => boolean;
+  sendVirtualKeyChord?: (virtualKeys: number[]) => boolean;
+  isTextInputFocused?: () => boolean;
+  focusGameWindow?: (executableNames: string[]) => boolean;
   buildLocalGameSnapshotPipeline: (
     input: BuildLocalGameSnapshotPipelineInput
   ) => Promise<NativeLocalGameSnapshotPipelineResult>;
@@ -173,6 +179,7 @@ type HydraNativeModule = {
     tempRoot: string
   ) => Promise<void>;
   controllerList?: () => NativeControllerDeviceInfo[];
+  controllerBackendError?: () => string | null;
   controllerStart?: (id: string) => boolean;
   controllerStop?: (id: string) => boolean;
   controllerSetLightbar?: (
@@ -473,6 +480,60 @@ export class NativeAddon {
     });
   }
 
+  public static isProcessElevated(): boolean {
+    try {
+      return this.load().isProcessElevated?.() ?? false;
+    } catch (error) {
+      logger.error("Failed to check process elevation", error);
+      return false;
+    }
+  }
+
+  public static relaunchElevated(exePath: string): boolean {
+    try {
+      return this.load().relaunchElevated?.(exePath) ?? false;
+    } catch (error) {
+      logger.error("Failed to relaunch elevated", error);
+      return false;
+    }
+  }
+
+  public static sendTextInput(text: string): boolean {
+    try {
+      return this.load().sendTextInput?.(text) ?? false;
+    } catch (error) {
+      logger.error("Failed to send text input", error);
+      return false;
+    }
+  }
+
+  public static sendVirtualKeyChord(virtualKeys: number[]): boolean {
+    try {
+      return this.load().sendVirtualKeyChord?.(virtualKeys) ?? false;
+    } catch (error) {
+      logger.error("Failed to send virtual key chord", error);
+      return false;
+    }
+  }
+
+  public static isTextInputFocused(): boolean {
+    try {
+      return this.load().isTextInputFocused?.() ?? false;
+    } catch (error) {
+      logger.error("Failed to check text input focus", error);
+      return false;
+    }
+  }
+
+  public static focusGameWindow(executableNames: string[]): boolean {
+    try {
+      return this.load().focusGameWindow?.(executableNames) ?? false;
+    } catch (error) {
+      logger.error("Failed to focus game window", error);
+      return false;
+    }
+  }
+
   public static getLinuxActiveWindow() {
     if (process.platform !== "linux") return null;
 
@@ -688,10 +749,33 @@ export class NativeAddon {
     return controllerStubEnabled;
   }
 
+  private static controllerExportsWarned = false;
+
+  private static hasControllerExports(): boolean {
+    const mod = this.load();
+    const missing =
+      typeof mod.controllerList !== "function" ||
+      typeof mod.controllerOnEvent !== "function";
+    if (missing && !this.controllerExportsWarned) {
+      this.controllerExportsWarned = true;
+      logger.error(
+        "Native addon has no controller exports — the .node binary predates the controller module or is for the wrong platform; controller detection is disabled"
+      );
+    }
+    return !missing;
+  }
+
   public static controllerList(): NativeControllerDeviceInfo[] {
     if (this.useControllerStub()) return controllerStub.list();
     try {
-      return this.load().controllerList?.() ?? [];
+      if (!this.hasControllerExports()) return [];
+      const devices = this.load().controllerList?.() ?? [];
+      const backendError = this.load().controllerBackendError?.();
+      if (backendError && !this.controllerExportsWarned) {
+        this.controllerExportsWarned = true;
+        logger.error(`Controller HID backend failed: ${backendError}`);
+      }
+      return devices;
     } catch (error) {
       logger.error("Failed to list controllers via native addon", error);
       return [];
@@ -882,6 +966,7 @@ export class NativeAddon {
   ): boolean {
     if (this.useControllerStub()) return controllerStub.onEvent(callback);
     try {
+      if (!this.hasControllerExports()) return false;
       this.load().controllerOnEvent?.(callback);
       return true;
     } catch (error) {

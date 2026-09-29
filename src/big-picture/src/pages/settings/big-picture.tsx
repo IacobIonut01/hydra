@@ -14,7 +14,14 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Checkbox, DropdownSelect, VerticalFocusGroup } from "../../components";
+import { WarningIcon } from "@phosphor-icons/react";
+
+import {
+  Button,
+  Checkbox,
+  DropdownSelect,
+  VerticalFocusGroup,
+} from "../../components";
 import type { DropdownSelectOption } from "../../components/common/dropdown-select";
 import { useUserPreferences } from "../../hooks";
 import type { FocusOverrideTarget, FocusOverrides } from "../../services";
@@ -23,9 +30,11 @@ import {
   BIG_PICTURE_DISPLAY_SECTION_REGION_ID,
   BIG_PICTURE_DIAGNOSTICS_POSITION_SELECT_ID,
   BIG_PICTURE_DIAGNOSTICS_SECTION_REGION_ID,
+  BIG_PICTURE_GAME_MODE_SECTION_REGION_ID,
   BIG_PICTURE_ITEM_FOCUS_IDS,
   BIG_PICTURE_LAUNCHING_MONITOR_SELECT_ID,
   BIG_PICTURE_OUTPUT_DEVICE_SELECT_ID,
+  BIG_PICTURE_RELAUNCH_AS_ADMIN_BUTTON_ID,
   BIG_PICTURE_SECTION_REGION_ID,
   BIG_PICTURE_STARTUP_SECTION_REGION_ID,
   BIG_PICTURE_UI_SCALE_SELECT_ID,
@@ -47,6 +56,8 @@ interface BigPictureForm {
   bigPictureVirtualKeyboardEnabled: boolean;
   bigPictureDiagnosticsEnabled: boolean;
   bigPictureDiagnosticsPosition: BigPictureDiagnosticsPosition;
+  bigPictureGameModeEnabled: boolean;
+  bigPictureInGameKeyboardEnabled: boolean;
 }
 
 interface BigPictureItem {
@@ -54,6 +65,7 @@ interface BigPictureItem {
   focusId: string;
   label: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 }
 
@@ -67,6 +79,8 @@ const DEFAULT_FORM: BigPictureForm = {
   bigPictureVirtualKeyboardEnabled: true,
   bigPictureDiagnosticsEnabled: false,
   bigPictureDiagnosticsPosition: "bottom-center",
+  bigPictureGameModeEnabled: false,
+  bigPictureInGameKeyboardEnabled: true,
 };
 
 const DEFAULT_BIG_PICTURE_DISPLAY_ID = "default";
@@ -95,6 +109,10 @@ const buildForm = (preferences: UserPreferences | null): BigPictureForm =>
           preferences.bigPictureDiagnosticsEnabled ?? false,
         bigPictureDiagnosticsPosition:
           preferences.bigPictureDiagnosticsPosition ?? "bottom-center",
+        bigPictureGameModeEnabled:
+          preferences.bigPictureGameModeEnabled ?? false,
+        bigPictureInGameKeyboardEnabled:
+          preferences.bigPictureInGameKeyboardEnabled ?? true,
       }
     : DEFAULT_FORM;
 
@@ -115,9 +133,28 @@ export function BigPictureSettingsSection({
   );
   const [displays, setDisplays] = useState<HydraDisplay[]>([]);
   const [audioDevices, setAudioDevices] = useState<HydraAudioDevice[]>([]);
+  const [isProcessElevated, setIsProcessElevated] = useState(true);
+  const [isRelaunchingAsAdmin, setIsRelaunchingAsAdmin] = useState(false);
+
+  const isWindows = globalThis.window.electron?.platform === "win32";
 
   useEffect(() => {
     let isMounted = true;
+
+    if (isWindows) {
+      globalThis.window.electron
+        .isProcessElevated()
+        .then((elevated) => {
+          if (!isMounted) return;
+
+          setIsProcessElevated(elevated);
+        })
+        .catch(() => {
+          if (!isMounted) return;
+
+          setIsProcessElevated(true);
+        });
+    }
 
     globalThis.window.electron
       .getDisplays()
@@ -148,7 +185,7 @@ export function BigPictureSettingsSection({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isWindows]);
 
   useEffect(() => {
     if (!userPreferences) return;
@@ -257,6 +294,30 @@ export function BigPictureSettingsSection({
     [updateUserPreferences]
   );
 
+  const handleGameModeChange = useCallback(
+    (checked: boolean) => {
+      updateUserPreferences({ bigPictureGameModeEnabled: checked });
+    },
+    [updateUserPreferences]
+  );
+
+  const handleInGameKeyboardChange = useCallback(
+    (checked: boolean) => {
+      updateUserPreferences({ bigPictureInGameKeyboardEnabled: checked });
+    },
+    [updateUserPreferences]
+  );
+
+  const handleRelaunchAsAdmin = useCallback(async () => {
+    setIsRelaunchingAsAdmin(true);
+
+    try {
+      await globalThis.window.electron.relaunchAsAdmin();
+    } finally {
+      setIsRelaunchingAsAdmin(false);
+    }
+  }, []);
+
   const startupItems = useMemo<BigPictureItem[]>(() => {
     return [
       {
@@ -317,6 +378,35 @@ export function BigPictureSettingsSection({
       },
     ];
   }, [form.bigPictureDiagnosticsEnabled, handleDiagnosticsEnabledChange, t]);
+
+  const gameModeItems = useMemo<BigPictureItem[]>(() => {
+    return [
+      {
+        id: "enable-game-mode",
+        focusId: BIG_PICTURE_ITEM_FOCUS_IDS.enableGameMode,
+        label: t("settings_enable_game_mode"),
+        checked: form.bigPictureGameModeEnabled,
+        onChange: handleGameModeChange,
+      },
+      {
+        id: "enable-in-game-keyboard",
+        focusId: BIG_PICTURE_ITEM_FOCUS_IDS.enableInGameKeyboard,
+        label: t("settings_enable_in_game_keyboard"),
+        checked: form.bigPictureInGameKeyboardEnabled,
+        disabled: !form.bigPictureGameModeEnabled,
+        onChange: handleInGameKeyboardChange,
+      },
+    ];
+  }, [
+    form.bigPictureGameModeEnabled,
+    form.bigPictureInGameKeyboardEnabled,
+    handleGameModeChange,
+    handleInGameKeyboardChange,
+    t,
+  ]);
+
+  const showElevationWarning =
+    isWindows && form.bigPictureGameModeEnabled && !isProcessElevated;
 
   const diagnosticsPositionOptions = useMemo<
     Array<DropdownSelectOption<BigPictureDiagnosticsPosition>>
@@ -545,13 +635,71 @@ export function BigPictureSettingsSection({
                   itemId: BIG_PICTURE_DIAGNOSTICS_POSITION_SELECT_ID,
                 };
               }
-              return { type: "block" as const };
+              return {
+                type: "item" as const,
+                itemId: BIG_PICTURE_ITEM_FOCUS_IDS.enableGameMode,
+              };
             })(),
           } satisfies FocusOverrides,
         ];
       })
     );
   }, [diagnosticsItems, form.bigPictureDiagnosticsEnabled]);
+
+  const gameModeNavigationOverridesByFocusId = useMemo<
+    Record<string, FocusOverrides>
+  >(() => {
+    const previousFallback: FocusOverrideTarget = {
+      type: "item",
+      itemId: form.bigPictureDiagnosticsEnabled
+        ? BIG_PICTURE_DIAGNOSTICS_POSITION_SELECT_ID
+        : BIG_PICTURE_ITEM_FOCUS_IDS.enableDiagnostics,
+    };
+
+    const downFallback: FocusOverrideTarget = showElevationWarning
+      ? { type: "item", itemId: BIG_PICTURE_RELAUNCH_AS_ADMIN_BUTTON_ID }
+      : { type: "block" };
+
+    return Object.fromEntries(
+      gameModeItems.map((item, index) => {
+        const previousItem = gameModeItems[index - 1];
+        const nextItem = gameModeItems[index + 1];
+
+        return [
+          item.focusId,
+          {
+            up: previousItem
+              ? {
+                  type: "item",
+                  itemId: previousItem.focusId,
+                }
+              : previousFallback,
+            down: nextItem
+              ? nextItem.disabled
+                ? downFallback
+                : {
+                    type: "item",
+                    itemId: nextItem.focusId,
+                  }
+              : downFallback,
+          } satisfies FocusOverrides,
+        ];
+      })
+    );
+  }, [gameModeItems, form.bigPictureDiagnosticsEnabled, showElevationWarning]);
+
+  const relaunchAsAdminNavigationOverrides = useMemo<FocusOverrides>(
+    () => ({
+      up: {
+        type: "item",
+        itemId: form.bigPictureGameModeEnabled
+          ? BIG_PICTURE_ITEM_FOCUS_IDS.enableInGameKeyboard
+          : BIG_PICTURE_ITEM_FOCUS_IDS.enableGameMode,
+      },
+      down: { type: "block" },
+    }),
+    [form.bigPictureGameModeEnabled]
+  );
 
   const displaySelectNavigationOverrides = useMemo<FocusOverrides>(
     () => ({
@@ -602,7 +750,8 @@ export function BigPictureSettingsSection({
         itemId: BIG_PICTURE_ITEM_FOCUS_IDS.enableDiagnostics,
       },
       down: {
-        type: "block",
+        type: "item",
+        itemId: BIG_PICTURE_ITEM_FOCUS_IDS.enableGameMode,
       },
     }),
     []
@@ -771,6 +920,58 @@ export function BigPictureSettingsSection({
               focusNavigationOverrides={diagnosticsSelectNavigationOverrides}
               onValueChange={handleDiagnosticsPositionChange}
             />
+          </div>
+        </VerticalFocusGroup>
+      </SettingsSection>
+
+      <SettingsSection
+        title={t("settings_game_mode_section_title")}
+        description={t("settings_game_mode_section_description")}
+      >
+        <VerticalFocusGroup
+          regionId={BIG_PICTURE_GAME_MODE_SECTION_REGION_ID}
+          asChild
+        >
+          <div className="big-picture-settings-section__content">
+            {gameModeItems.map((item) => (
+              <Checkbox
+                key={item.id}
+                id={item.id}
+                label={item.label}
+                checked={item.checked}
+                disabled={item.disabled}
+                focusId={item.focusId}
+                navigationOverrides={
+                  gameModeNavigationOverridesByFocusId[item.focusId]
+                }
+                block
+                onChange={item.onChange}
+              />
+            ))}
+
+            {showElevationWarning && (
+              <div className="big-picture-settings-section__warning">
+                <WarningIcon
+                  className="big-picture-settings-section__warning-icon"
+                  weight="fill"
+                  aria-hidden
+                />
+                <p className="big-picture-settings-section__warning-text">
+                  {t("settings_game_mode_elevation_warning")}
+                </p>
+                <Button
+                  className="big-picture-settings-section__warning-action"
+                  variant="secondary"
+                  size="small"
+                  loading={isRelaunchingAsAdmin}
+                  focusId={BIG_PICTURE_RELAUNCH_AS_ADMIN_BUTTON_ID}
+                  focusNavigationOverrides={relaunchAsAdminNavigationOverrides}
+                  onClick={handleRelaunchAsAdmin}
+                >
+                  {t("settings_relaunch_as_admin")}
+                </Button>
+              </div>
+            )}
           </div>
         </VerticalFocusGroup>
       </SettingsSection>

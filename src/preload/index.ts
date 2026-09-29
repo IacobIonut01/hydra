@@ -50,6 +50,7 @@ import type {
   ArtworkPage,
   GameArtworkSelection,
   GameLauncherStatusPayload,
+  GameLaunchState,
   CloudSaveAutomaticSyncModeChangedEvent,
   CloudSaveAutomaticSyncEvent,
   CloudSaveConflictResolution,
@@ -1125,6 +1126,20 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("getEmulatorRomExtensions", system),
   closeGame: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("closeGame", shop, objectId),
+  cancelGameLaunch: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("cancelGameLaunch", shop, objectId),
+  getGameLaunchState: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("getGameLaunchState", shop, objectId),
+  focusRunningGame: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("focusRunningGame", shop, objectId),
+  onGameLaunchState: (cb: (state: GameLaunchState) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      state: GameLaunchState
+    ) => cb(state);
+    ipcRenderer.on("on-game-launch-state", listener);
+    return () => ipcRenderer.removeListener("on-game-launch-state", listener);
+  },
   removeGameFromLibrary: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("removeGameFromLibrary", shop, objectId),
   removeGame: (shop: GameShop, objectId: string) =>
@@ -1313,6 +1328,14 @@ contextBridge.exposeInMainWorld("electron", {
   getAudioDevices: () =>
     ipcRenderer.invoke("getAudioDevices") as Promise<HydraAudioDevice[]>,
   getNetworkInterfaces: () => ipcRenderer.invoke("getNetworkInterfaces"),
+  isProcessElevated: () => ipcRenderer.invoke("isProcessElevated"),
+  relaunchAsAdmin: () => ipcRenderer.invoke("relaunchAsAdmin"),
+  showKeyboardOverlay: () => ipcRenderer.invoke("showKeyboardOverlay"),
+  hideKeyboardOverlay: () => ipcRenderer.invoke("hideKeyboardOverlay"),
+  toggleKeyboardOverlay: () => ipcRenderer.invoke("toggleKeyboardOverlay"),
+  sendTextInput: (text: string) => ipcRenderer.invoke("sendTextInput", text),
+  sendVirtualKeyChord: (virtualKeys: number[]) =>
+    ipcRenderer.invoke("sendVirtualKeyChord", virtualKeys),
 
   /* Cloud save */
   uploadSaveGame: (

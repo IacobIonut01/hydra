@@ -48,6 +48,10 @@ export const BIG_PICTURE_DIAGNOSTICS_SECTION_REGION_ID =
   "big-picture-diagnostics-section-region";
 export const BIG_PICTURE_DIAGNOSTICS_POSITION_SELECT_ID =
   "big-picture-diagnostics-position-select";
+export const BIG_PICTURE_GAME_MODE_SECTION_REGION_ID =
+  "big-picture-game-mode-section-region";
+export const BIG_PICTURE_RELAUNCH_AS_ADMIN_BUTTON_ID =
+  "big-picture-relaunch-as-admin-button";
 export const COMPATIBILITY_SECTION_REGION_ID = "compatibility-section-region";
 export const INTEGRATIONS_SECTION_REGION_ID = "integrations-section-region";
 export const ACCOUNT_PRIVACY_PRIVACY_SELECT_ID =
@@ -176,6 +180,8 @@ export const BIG_PICTURE_ITEM_FOCUS_IDS = {
   enableSounds: "big-picture-enable-sounds",
   enableVirtualKeyboard: "big-picture-enable-virtual-keyboard",
   enableDiagnostics: "big-picture-enable-diagnostics",
+  enableGameMode: "big-picture-enable-game-mode",
+  enableInGameKeyboard: "big-picture-enable-in-game-keyboard",
 } as const;
 
 export const COMPATIBILITY_PROTON_OPTION_AUTO_FOCUS_ID =

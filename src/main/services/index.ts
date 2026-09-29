@@ -14,6 +14,8 @@ export * from "./cloud-sync";
 export * from "./7zip";
 export * from "./game-files-manager";
 export * from "./game-executables";
+export * from "./game-launch-state";
+export * from "./keyboard-overlay-watcher";
 export * from "./common-redist-manager";
 export * from "./sse";
 export * from "./screenshot";

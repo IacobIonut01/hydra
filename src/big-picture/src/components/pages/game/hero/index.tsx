@@ -2,6 +2,7 @@ import {
   DownloadSimpleIcon,
   GearIcon,
   HeartIcon,
+  MonitorPlayIcon,
   PackageIcon,
   PlayIcon,
   PlusCircleIcon,
@@ -10,10 +11,7 @@ import {
 import type { LibraryGame, ShopDetailsWithAssets } from "@types";
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  FocusOverrides,
-  FocusOverrideTarget,
-} from "../../../../services";
+import type { FocusOverrides, FocusOverrideTarget } from "../../../../services";
 import {
   animateNavigationScrollForElement,
   resolvePreferredGameAssets,
@@ -30,6 +28,7 @@ import {
 } from "../../../common";
 import {
   GAME_HERO_ACTIONS_REGION_ID,
+  GAME_HERO_CLOSE_GAME_ID,
   GAME_HERO_DOWNLOAD_OPTIONS_ID,
   GAME_HERO_OPEN_CLOUD_SAVE_ID,
   GAME_HERO_OPEN_SETTINGS_ID,
@@ -53,6 +52,7 @@ export interface HeroProps {
   onOpenDownloadOptions: () => void;
   onOpenSettings: () => void;
   onClose: () => void;
+  onReturnToGame: () => void;
   isAddingToLibrary: boolean;
   canAddToLibrary: boolean;
   downNavigationTarget?: FocusOverrideTarget;
@@ -95,6 +95,7 @@ export function Hero({
   onOpenDownloadOptions,
   onOpenSettings,
   onClose,
+  onReturnToGame,
   isAddingToLibrary,
   canAddToLibrary,
   downNavigationTarget,
@@ -238,13 +239,25 @@ export function Hero({
               focusId={GAME_HERO_PRIMARY_ACTION_ID}
               focusNavigationOverrides={primaryActionNavigationOverrides}
               variant="primary"
+              color={dominantColor ?? undefined}
+              iconPosition="right"
+              icon={<MonitorPlayIcon size={24} weight="fill" />}
+              onClick={onReturnToGame}
+            >
+              Return to game
+            </Button>
+          ),
+          downloadOptionsButton: (
+            <Button
+              focusId={GAME_HERO_CLOSE_GAME_ID}
+              focusNavigationOverrides={downloadOptionsNavigationOverrides}
+              variant="secondary"
               icon={<XCircleIcon size={24} />}
               onClick={onClose}
             >
               Close Game
             </Button>
           ),
-          downloadOptionsButton: null,
           settingsButton: shouldShowFavoriteButton ? (
             <Button
               focusId={GAME_HERO_OPEN_SETTINGS_ID}
@@ -440,6 +453,7 @@ export function Hero({
       onOpenDownloadOptions,
       onOpenSettings,
       onPlay,
+      onReturnToGame,
       shouldShowCatalogActions,
       shouldShowCloudSaveButton,
       shouldShowFavoriteButton,

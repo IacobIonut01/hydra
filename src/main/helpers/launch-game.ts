@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   GameShop,
   type Game,
+  type GameLaunchResult,
   type LaunchSource,
   type UserPreferences,
 } from "@types";
@@ -31,6 +32,10 @@ import {
   NativeAddon,
   DisplayManager,
   launchedGamePids,
+  beginGameLaunch,
+  consumeGameLaunchCancellation,
+  failGameLaunch,
+  setGameLaunchPhase,
 } from "@main/services";
 import { updateGameRecord } from "@main/services/game-record-updater";
 import { dispatchSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch-dispatch";
@@ -38,6 +43,7 @@ import { resolveSteamProtocolLaunch } from "@main/services/steam-integration/ste
 import { CommonRedistManager } from "@main/services/common-redist-manager";
 import { runAchievementMetadataExport } from "@main/services/achievements/metadata-export";
 import { parseExecutablePath } from "../events/helpers/parse-executable-path";
+import { ensureFirewallAllowRule } from "./firewall-rules";
 import { isGamemodeAvailable } from "./is-gamemode-available";
 import { isMangohudAvailable } from "./is-mangohud-available";
 import { resolveLaunchCommand } from "./resolve-launch-command";
@@ -75,12 +81,35 @@ const ensureExecutablePermission = (executablePath: string) => {
   }
 };
 
-const launchNatively = (
+type LaunchSpawnOutcome =
+  | { ok: true; pid: number | null }
+  | { ok: false; detail: string };
+
+const spawnDetached = (
+  command: string,
+  args: string[],
+  spawnOptions: Parameters<typeof spawn>[2]
+): Promise<LaunchSpawnOutcome> =>
+  new Promise<LaunchSpawnOutcome>((resolve) => {
+    const processRef = spawn(command, args, spawnOptions);
+
+    processRef.once("spawn", () => {
+      processRef.unref();
+      resolve({ ok: true, pid: processRef.pid ?? null });
+    });
+
+    processRef.once("error", (error) => {
+      logger.error("Failed to launch game", error);
+      resolve({ ok: false, detail: error.message });
+    });
+  });
+
+const launchNatively = async (
   executablePath: string,
   launchOptions?: string | null,
   useMangohud = false,
   useGamemode = false
-): number | null => {
+): Promise<LaunchSpawnOutcome> => {
   const workingDirectory = path.dirname(executablePath);
   const resolvedLaunchCommand = resolveLaunchCommand({
     baseCommand: executablePath,
@@ -98,19 +127,26 @@ const launchNatively = (
     resolvedLaunchCommand.args.length === 0 &&
     Object.keys(resolvedLaunchCommand.env).length === 0
   ) {
-    shell.openPath(executablePath);
-    return null;
+    const openError = await shell.openPath(executablePath);
+    if (!openError) return { ok: true, pid: null };
+
+    logger.error("Failed to launch game", {
+      executablePath,
+      error: openError,
+    });
+    return { ok: false, detail: openError };
   }
 
   if (
     process.platform === "win32" &&
     isWindowsBatchFile(resolvedLaunchCommand.command)
   ) {
-    const processRef = spawn(
+    return spawnDetached(
       buildWindowsBatchCommand(
         resolvedLaunchCommand.command,
         resolvedLaunchCommand.args
       ),
+      [],
       {
         shell: true,
         detached: true,
@@ -122,17 +158,9 @@ const launchNatively = (
         },
       }
     );
-
-    processRef.on("error", (error) => {
-      logger.error("Failed to launch game", error);
-    });
-
-    processRef.unref();
-
-    return processRef.pid ?? null;
   }
 
-  const processRef = spawn(
+  return spawnDetached(
     resolvedLaunchCommand.command,
     resolvedLaunchCommand.args,
     {
@@ -146,14 +174,6 @@ const launchNatively = (
       },
     }
   );
-
-  processRef.on("error", (error) => {
-    logger.error("Failed to launch game", error);
-  });
-
-  processRef.unref();
-
-  return processRef.pid ?? null;
 };
 
 const launchWithWine = async (
@@ -400,8 +420,9 @@ const launchWindowsBinaryOnLinux = async (
   launchOptions: string | null | undefined,
   useMangohud: boolean,
   useGamemode: boolean
-): Promise<boolean> => {
+): Promise<LaunchSpawnOutcome> => {
   const { protonPath, winePrefixPath } = compatibilityContext;
+  let umuErrorDetail = "umu-run launch failed";
 
   try {
     await Umu.launchExecutable(parsedPath, [], {
@@ -413,9 +434,10 @@ const launchWindowsBinaryOnLinux = async (
       useMangohud,
     });
     PowerSaveBlockerManager.markCompatibilityLaunchStarted(gameKey);
-    return true;
+    return { ok: true, pid: null };
   } catch (error) {
     logger.error("Failed to launch game with umu-run, falling back", error);
+    umuErrorDetail = error instanceof Error ? error.message : umuErrorDetail;
   }
 
   const launchedWithWine = await launchWithWine(
@@ -428,10 +450,10 @@ const launchWindowsBinaryOnLinux = async (
 
   if (launchedWithWine) {
     PowerSaveBlockerManager.markCompatibilityLaunchStarted(gameKey);
-    return true;
+    return { ok: true, pid: null };
   }
 
-  return false;
+  return { ok: false, detail: umuErrorDetail };
 };
 
 interface PreparedLinuxCompatibility {
@@ -583,18 +605,38 @@ const launchResolvedGame = async (
   launchOptions: string | null | undefined,
   useMangohud: boolean,
   useGamemode: boolean
-) => {
+): Promise<GameLaunchResult> => {
   if (process.platform !== "linux") {
-    return launchNatively(parsedPath, launchOptions, useMangohud, useGamemode);
+    const outcome = await launchNatively(
+      parsedPath,
+      launchOptions,
+      useMangohud,
+      useGamemode
+    );
+
+    if (!outcome.ok) {
+      clearCloudSaveLaunchGuard(objectId, shop);
+      return {
+        status: "failed",
+        error: "spawn-failed",
+        detail: outcome.detail,
+      };
+    }
+
+    return { status: "launched", pid: outcome.pid };
   }
 
   if (isWindowsExecutable(parsedPath)) {
     if (!compatibilityContext) {
       clearCloudSaveLaunchGuard(objectId, shop);
-      return null;
+      return {
+        status: "failed",
+        error: "wine-failed",
+        detail: "no compatibility context resolved",
+      };
     }
 
-    const launched = await launchWindowsBinaryOnLinux(
+    const compatOutcome = await launchWindowsBinaryOnLinux(
       gameKey,
       objectId,
       parsedPath,
@@ -603,27 +645,42 @@ const launchResolvedGame = async (
       useMangohud,
       useGamemode
     );
-    if (launched) return null;
+    if (compatOutcome.ok) return { status: "launched", pid: null };
     clearCloudSaveLaunchGuard(objectId, shop);
   }
 
-  const pid = launchNatively(
+  const outcome = await launchNatively(
     parsedPath,
     launchOptions,
     useMangohud,
     useGamemode
   );
-  if (pid !== null) launchedGamePids.set(gameKey, pid);
-  return pid;
+
+  if (!outcome.ok) {
+    clearCloudSaveLaunchGuard(objectId, shop);
+    return {
+      status: "failed",
+      error: "spawn-failed",
+      detail: outcome.detail,
+    };
+  }
+
+  if (outcome.pid !== null) launchedGamePids.set(gameKey, outcome.pid);
+  return { status: "launched", pid: outcome.pid };
 };
+
+interface ResolvedLaunchGameOptions extends LaunchGameOptions {
+  userPreferences: UserPreferences | null;
+  gameMode: boolean;
+}
 
 /**
  * Shows the launcher window and launches the game executable
  * Shared between deep link handler and openGame event
  */
 const launchGameWithCloudSaveChecks = async (
-  options: LaunchGameOptions
-): Promise<number | null> => {
+  options: ResolvedLaunchGameOptions
+): Promise<GameLaunchResult> => {
   const { shop, objectId, executablePath, launchOptions, launchSource } =
     options;
 
@@ -649,11 +706,7 @@ const launchGameWithCloudSaveChecks = async (
         })
       : null;
 
-  const userPreferences = await db
-    .get<string, UserPreferences | null>(levelKeys.userPreferences, {
-      valueEncoding: "json",
-    })
-    .catch(() => null);
+  const userPreferences = options.userPreferences;
 
   const useMangohud =
     (userPreferences?.autoRunMangohud === true ||
@@ -683,8 +736,10 @@ const launchGameWithCloudSaveChecks = async (
     : null;
   const launchGameRecord = updatedGame ?? game;
 
-  const launchDisplay = await getLaunchDisplay(launchSource);
-  await WindowManager.createGameLauncherWindow(shop, objectId, launchDisplay);
+  if (!options.gameMode) {
+    const launchDisplay = await getLaunchDisplay(launchSource);
+    await WindowManager.createGameLauncherWindow(shop, objectId, launchDisplay);
+  }
 
   const shouldRunV2AutomaticSync = await canRunAutomaticCloudSaveSync(
     objectId,
@@ -744,8 +799,11 @@ const launchGameWithCloudSaveChecks = async (
       launchGameRecord?.title ?? objectId,
       "openCloudSavePathApproval"
     );
-    return null;
+    failGameLaunch(shop, objectId, "cloud-save-blocked");
+    return { status: "blocked" };
   }
+
+  setGameLaunchPhase(shop, objectId, "syncing-saves");
 
   const preLaunchOutcome =
     shouldRunV2AutomaticSync && prefixReadyForRestore
@@ -790,7 +848,8 @@ const launchGameWithCloudSaveChecks = async (
       clearCloudSaveLaunchGuard(objectId, shop);
       WindowManager.closeGameLauncherWindow();
     }
-    return null;
+    failGameLaunch(shop, objectId, "cloud-save-blocked");
+    return { status: "blocked" };
   }
 
   if (cloudSaveContext) {
@@ -809,14 +868,31 @@ const launchGameWithCloudSaveChecks = async (
 
   // Run preflight check for common redistributables (Windows only)
   // Wrapped in try/catch to ensure game launch is never blocked
+  setGameLaunchPhase(shop, objectId, "checking-redistributables");
   await runCommonRedistPreflight(shop, objectId);
 
   if (updatedGame) {
+    setGameLaunchPhase(shop, objectId, "exporting-achievements");
     void runAchievementMetadataExport(gameKey, updatedGame);
   }
 
   await new Promise((resolve) => setTimeout(resolve, LAUNCH_DELAY_IN_MS));
   await prepareBigPictureDisplayForLaunchSource(launchSource);
+
+  if (consumeGameLaunchCancellation(shop, objectId)) {
+    clearCloudSaveLaunchGuard(objectId, shop);
+    failGameLaunch(shop, objectId, "cancelled");
+    return { status: "cancelled" };
+  }
+
+  setGameLaunchPhase(shop, objectId, "launching");
+
+  if (process.platform === "win32" && NativeAddon.isProcessElevated()) {
+    await ensureFirewallAllowRule(
+      parsedPath,
+      launchGameRecord?.title ?? objectId
+    );
+  }
 
   if (steamProtocolLaunch) {
     if (launchOptions?.includes("%command%") || useMangohud || useGamemode) {
@@ -862,7 +938,8 @@ const launchGameWithCloudSaveChecks = async (
         objectId,
         executablePath: parsedPath,
       });
-      return null;
+      setGameLaunchPhase(shop, objectId, "awaiting-process");
+      return { status: "launched", pid: null };
     }
 
     logger.error("Failed to launch game through Steam protocol", {
@@ -870,10 +947,20 @@ const launchGameWithCloudSaveChecks = async (
       executablePath: parsedPath,
       error: dispatchResult.error,
     });
+
+    if (dispatchResult.value?.status === "failed") {
+      failGameLaunch(
+        shop,
+        objectId,
+        dispatchResult.value.error,
+        dispatchResult.value.detail ?? null
+      );
+    }
+
     return dispatchResult.value;
   }
 
-  return launchResolvedGame(
+  const result = await launchResolvedGame(
     gameKey,
     shop,
     objectId,
@@ -883,6 +970,14 @@ const launchGameWithCloudSaveChecks = async (
     useMangohud,
     useGamemode
   );
+
+  if (result.status === "launched") {
+    setGameLaunchPhase(shop, objectId, "awaiting-process");
+  } else if (result.status === "failed") {
+    failGameLaunch(shop, objectId, result.error, result.detail ?? null);
+  }
+
+  return result;
 };
 
 const hasLaunchableExecutable = (executablePath: string) => {
@@ -895,22 +990,58 @@ const hasLaunchableExecutable = (executablePath: string) => {
   }
 };
 
-export const launchGame = async (options: LaunchGameOptions) => {
+export const launchGame = async (
+  options: LaunchGameOptions
+): Promise<GameLaunchResult> => {
+  const launchSource = options.launchSource ?? "default";
+  const userPreferences = await db
+    .get<string, UserPreferences | null>(levelKeys.userPreferences, {
+      valueEncoding: "json",
+    })
+    .catch(() => null);
+
+  const gameMode =
+    launchSource === "big-picture" &&
+    userPreferences?.bigPictureGameModeEnabled === true;
+
+  beginGameLaunch(options.shop, options.objectId, launchSource, gameMode);
+
+  if (gameMode) {
+    WindowManager.bigPictureWindow?.webContents.send(
+      "on-navigate",
+      `/big-picture/launching/${options.shop}/${options.objectId}`
+    );
+  }
+
   if (!hasLaunchableExecutable(options.executablePath)) {
     logger.warn("Game executable not found", {
       shop: options.shop,
       objectId: options.objectId,
       executablePath: options.executablePath,
     });
+    failGameLaunch(options.shop, options.objectId, "executable-not-found");
     WindowManager.sendToAppWindows(
       "on-game-executable-not-found",
       options.shop,
       options.objectId
     );
-    return null;
+    return { status: "failed", error: "executable-not-found" };
   }
 
-  return runWithCloudSaveLaunchGate(options.objectId, options.shop, () =>
-    launchGameWithCloudSaveChecks(options)
-  );
+  try {
+    return await runWithCloudSaveLaunchGate(
+      options.objectId,
+      options.shop,
+      () =>
+        launchGameWithCloudSaveChecks({ ...options, userPreferences, gameMode })
+    );
+  } catch (error) {
+    logger.error("Game launch was rejected by the cloud save gate", {
+      shop: options.shop,
+      objectId: options.objectId,
+      error,
+    });
+    failGameLaunch(options.shop, options.objectId, "cloud-save-blocked");
+    return { status: "blocked" };
+  }
 };
