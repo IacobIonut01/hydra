@@ -335,17 +335,21 @@ const launchInstallerElevated = async (
   onChildSpawned?: (child: ChildProcess) => void
 ): Promise<boolean> => {
   return await new Promise<boolean>((resolve) => {
-    const argumentList = args.map(toPowerShellLiteral).join(", ");
     // -LiteralPath, not -FilePath: repack folders are named like
     // "Cuphead [FitGirl Repack]" and [] are PowerShell wildcard
     // metacharacters -- -FilePath fails to resolve them and the whole
     // elevated launch dies before Inno ever runs. -WorkingDirectory keeps
     // the elevated child out of system32: Inno resolves {src} itself, but
     // repacker [Code] that locates fg-*.bin via the current directory
-    // aborts before /LOG is ever opened.
+    // aborts before /LOG is ever opened. ArgumentList goes as ONE verbatim
+    // string, not an array: PS5.1 re-quotes array elements that contain
+    // spaces or embedded quotes, which can split /DIR="..." /LOG="..."
+    // into garbage tokens Inno either ignores or chokes on.
+    const argumentList = args.join(" ");
     const command =
       `$p = Start-Process -LiteralPath ${toPowerShellLiteral(filePath)} ` +
-      `-ArgumentList @(${argumentList}) -Verb RunAs -Wait -PassThru ` +
+      `-ArgumentList ${toPowerShellLiteral(argumentList)} ` +
+      `-Verb RunAs -Wait -PassThru ` +
       `-WorkingDirectory ${toPowerShellLiteral(path.dirname(filePath))} ` +
       `-ErrorAction Stop; exit $p.ExitCode`;
 
