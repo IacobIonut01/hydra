@@ -327,11 +327,12 @@ const launchInstallerDirectly = async (
 
 // Repack Inno setups carry a requireAdministrator manifest, so a
 // non-elevated Hydra cannot spawn them -- CreateProcess returns
-// ERROR_ELEVATION_REQUIRED. Start-Process -Verb RunAs is the supported way
-// to elevate from a non-elevated parent AND it preserves our Inno silent
-// args, which shell.openPath would drop. -Wait -PassThru lets the
-// (non-elevated) powershell wrapper observe the elevated child's exit code,
-// so the install pipeline still gets a real completion signal.
+// ERROR_ELEVATION_REQUIRED. ProcessStartInfo with Verb=runas is the
+// supported way to elevate from a non-elevated parent AND it preserves
+// our Inno silent args, which shell.openPath would drop. WaitForExit
+// lets the (non-elevated) powershell wrapper observe the elevated
+// child's exit code, so the install pipeline still gets a real
+// completion signal.
 const toPowerShellLiteral = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
 const launchInstallerElevated = async (
@@ -341,23 +342,29 @@ const launchInstallerElevated = async (
   onChildSpawned?: (child: ChildProcess) => void
 ): Promise<boolean> => {
   return await new Promise<boolean>((resolve) => {
-    // -LiteralPath, not -FilePath: repack folders are named like
-    // "Cuphead [FitGirl Repack]" and [] are PowerShell wildcard
-    // metacharacters -- -FilePath fails to resolve them and the whole
-    // elevated launch dies before Inno ever runs. -WorkingDirectory keeps
-    // the elevated child out of system32: Inno resolves {src} itself, but
-    // repacker [Code] that locates fg-*.bin via the current directory
-    // aborts before /LOG is ever opened. ArgumentList goes as ONE verbatim
-    // string, not an array: PS5.1 re-quotes array elements that contain
-    // spaces or embedded quotes, which can split /DIR="..." /LOG="..."
-    // into garbage tokens Inno either ignores or chokes on.
+    // ProcessStartInfo, not Start-Process: Start-Process lacks
+    // -LiteralPath in every PowerShell version and -FilePath resolves
+    // the [] wildcard metacharacters in names like
+    // "Cuphead [FitGirl Repack]", so either spelling dies before runas
+    // ever runs. FileName is taken literally, WorkingDirectory keeps
+    // the elevated child out of system32 (repacker [Code] that locates
+    // fg-*.bin via cwd aborts before /LOG opens), and Arguments goes as
+    // ONE verbatim string so quoted /DIR="..." /LOG="..." survive.
     const argumentList = args.join(" ");
+    // The try/catch matters: without it a declined UAC throws, $p stays
+    // $null, and `exit $p.ExitCode` exits 0 -- falsely reporting a clean
+    // install exit for a launch that never happened.
     const command =
-      `$p = Start-Process -LiteralPath ${toPowerShellLiteral(filePath)} ` +
-      `-ArgumentList ${toPowerShellLiteral(argumentList)} ` +
-      `-Verb RunAs -Wait -PassThru ` +
-      `-WorkingDirectory ${toPowerShellLiteral(path.dirname(filePath))} ` +
-      `-ErrorAction Stop; exit $p.ExitCode`;
+      `$ErrorActionPreference = 'Stop'; ` +
+      `$psi = New-Object System.Diagnostics.ProcessStartInfo(` +
+      `${toPowerShellLiteral(filePath)}, ${toPowerShellLiteral(argumentList)}` +
+      `); ` +
+      `$psi.Verb = 'runas'; ` +
+      `$psi.UseShellExecute = $true; ` +
+      `$psi.WorkingDirectory = ${toPowerShellLiteral(path.dirname(filePath))}; ` +
+      `try { $p = [System.Diagnostics.Process]::Start($psi) } ` +
+      `catch { Write-Error $_.Exception.Message; exit 1 } ` +
+      `$p.WaitForExit(); exit $p.ExitCode`;
 
     let spawned = false;
     const child = spawn(
