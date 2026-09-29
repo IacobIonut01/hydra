@@ -375,6 +375,12 @@ const launchInstallerElevated = async (
     // else means the native launch itself could not run.
     logger.error("Failed to launch installer elevated", error);
     return false;
+  } finally {
+    // The UAC consent round-trip switches to the secure desktop and
+    // back, which silently resets the Big Picture zoom factor.
+    void WindowManager.reapplyBigPictureUiScalePreference().catch((error) =>
+      logger.warn("Failed to reapply Big Picture UI scale", error)
+    );
   }
 };
 

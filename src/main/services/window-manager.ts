@@ -11,7 +11,10 @@ import {
   CUSTOM_WINDOW_BORDER_WIDTH,
   CUSTOM_WINDOW_TITLE_BAR_HEIGHT,
 } from "@shared";
-import { applyBigPictureZoomFactor } from "../../types/big-picture-ui-scale";
+import {
+  applyBigPictureZoomFactor,
+  getBigPictureZoomFactor,
+} from "../../types/big-picture-ui-scale";
 import type {
   AchievementCustomNotificationPosition,
   AchievementNotificationInfo,
@@ -860,14 +863,40 @@ export class WindowManager {
     );
   }
 
-  public static async reapplyBigPictureUiScalePreference() {
+  // The desktop transition that drops the zoom factor (UAC secure
+  // desktop, display detach) can still be unwinding when a re-apply
+  // lands, silently discarding it -- keep re-applying until the factor
+  // actually reads back as the saved preference.
+  public static async reapplyBigPictureUiScalePreference(attempts = 4) {
     const userPreferences = await db
       .get<string, UserPreferences | null>(levelKeys.userPreferences, {
         valueEncoding: "json",
       })
       .catch(() => null);
 
-    this.applyBigPictureUiScalePreference(userPreferences);
+    const expected = getBigPictureZoomFactor(
+      userPreferences?.bigPictureUiScale
+    );
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const window = this.bigPicture;
+      if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
+        return;
+      }
+
+      if (Math.abs(window.webContents.getZoomFactor() - expected) < 0.001) {
+        return;
+      }
+
+      logger.warn(
+        `Big Picture zoom factor drifted to ${window.webContents.getZoomFactor()}, restoring ${expected}`
+      );
+      this.applyBigPictureUiScalePreference(userPreferences);
+
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+    }
   }
 
   private static applyBigPictureUiScaleToWindow(

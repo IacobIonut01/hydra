@@ -203,6 +203,7 @@ const initializeApp = async () => {
   };
   screen.on("display-metrics-changed", reapplyBigPictureUiScale);
   powerMonitor.on("unlock-screen", reapplyBigPictureUiScale);
+  powerMonitor.on("resume", reapplyBigPictureUiScale);
 
   const language = await db
     .get<string, string>(levelKeys.language, {
