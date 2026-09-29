@@ -1,11 +1,14 @@
 import {
+  ClockIcon,
   DownloadSimpleIcon,
   GearIcon,
   HeartIcon,
   MonitorPlayIcon,
   PackageIcon,
+  PauseIcon,
   PlayIcon,
   PlusCircleIcon,
+  WarningIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import type { LibraryGame, ShopDetailsWithAssets } from "@types";
@@ -14,10 +17,15 @@ import { useTranslation } from "react-i18next";
 import type { FocusOverrides, FocusOverrideTarget } from "../../../../services";
 import {
   animateNavigationScrollForElement,
+  getHeroDownloadDisplay,
   resolvePreferredGameAssets,
+  type HeroDownloadDisplayKind,
 } from "../../../../helpers";
 import { useDominantColor } from "../../../../hooks";
-import { useNavigationStore } from "../../../../stores";
+import {
+  useBigPictureDownloadsStore,
+  useNavigationStore,
+} from "../../../../stores";
 import { BIG_PICTURE_SIDEBAR_ITEM_IDS } from "../../../../layout";
 import {
   AnimatedHeroImage,
@@ -48,6 +56,7 @@ export interface HeroProps {
   onPlay: () => void;
   onDownload: () => void;
   onInstall: () => void;
+  onShowDownloadProgress: () => void;
   onAddToLibrary: () => void;
   onOpenDownloadOptions: () => void;
   onOpenSettings: () => void;
@@ -82,6 +91,22 @@ function getSettingsLeftTargetId(
   return BIG_PICTURE_SIDEBAR_ITEM_IDS.home;
 }
 
+function getDownloadDisplayIcon(kind: HeroDownloadDisplayKind) {
+  switch (kind) {
+    case "extracting":
+    case "installing":
+      return <PackageIcon size={24} />;
+    case "queued":
+      return <ClockIcon size={24} />;
+    case "paused":
+      return <PauseIcon size={24} />;
+    case "error":
+      return <WarningIcon size={24} />;
+    default:
+      return <DownloadSimpleIcon size={24} />;
+  }
+}
+
 export function Hero({
   shopDetails,
   game,
@@ -91,6 +116,7 @@ export function Hero({
   onPlay,
   onDownload,
   onInstall,
+  onShowDownloadProgress,
   onAddToLibrary,
   onOpenDownloadOptions,
   onOpenSettings,
@@ -104,6 +130,17 @@ export function Hero({
   const { t } = useTranslation("game_details");
   const heroRef = useRef<HTMLElement | null>(null);
   const currentFocusId = useNavigationStore((state) => state.currentFocusId);
+  const lastDownloadPacket = useBigPictureDownloadsStore(
+    (state) => state.lastPacket
+  );
+  const extractionProgressByGameId = useBigPictureDownloadsStore(
+    (state) => state.extractionProgressByGameId
+  );
+  const downloadDisplay = getHeroDownloadDisplay(
+    game,
+    lastDownloadPacket,
+    extractionProgressByGameId
+  );
 
   // The hero is the top of the page, so focusing any of its actions should show
   // it whole rather than stopping wherever it first becomes visible.
@@ -372,6 +409,37 @@ export function Hero({
         };
       }
 
+      if (game && downloadDisplay) {
+        return {
+          primaryActionButton: (
+            <Button
+              focusId={GAME_HERO_PRIMARY_ACTION_ID}
+              focusNavigationOverrides={primaryActionNavigationOverrides}
+              variant="primary"
+              color={dominantColor ?? undefined}
+              icon={getDownloadDisplayIcon(downloadDisplay.kind)}
+              progress={downloadDisplay.progress}
+              onClick={onShowDownloadProgress}
+            >
+              {downloadDisplay.label}
+            </Button>
+          ),
+          downloadOptionsButton: null,
+          settingsButton: (
+            <Button
+              focusId={GAME_HERO_OPEN_SETTINGS_ID}
+              focusNavigationOverrides={settingsNavigationOverrides}
+              variant="secondary"
+              aria-label={t("options")}
+              icon={<GearIcon size={24} />}
+              onClick={onOpenSettings}
+            >
+              {t("options")}
+            </Button>
+          ),
+        };
+      }
+
       if (game) {
         return {
           primaryActionButton: (
@@ -440,6 +508,7 @@ export function Hero({
     }, [
       canAddToLibrary,
       dominantColor,
+      downloadDisplay,
       game,
       hasPrimaryAction,
       heroDownNavigationTarget,
@@ -454,6 +523,7 @@ export function Hero({
       onOpenSettings,
       onPlay,
       onReturnToGame,
+      onShowDownloadProgress,
       shouldShowCatalogActions,
       shouldShowCloudSaveButton,
       shouldShowFavoriteButton,

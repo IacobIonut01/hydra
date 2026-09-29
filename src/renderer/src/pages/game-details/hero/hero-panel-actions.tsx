@@ -11,6 +11,7 @@ import {
 import { Button, ConfirmationModal } from "@renderer/components";
 import { XCircle } from "lucide-react";
 import {
+  useAppSelector,
   useDownload,
   useLibrary,
   useToast,
@@ -20,7 +21,10 @@ import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { gameDetailsContext } from "@renderer/context";
-import { handleClassicsLaunchError } from "@renderer/helpers";
+import {
+  formatDownloadProgress,
+  handleClassicsLaunchError,
+} from "@renderer/helpers";
 import { DiscSelectionModal } from "../modals/disc-selection-modal";
 
 import "./hero-panel-actions.scss";
@@ -51,9 +55,7 @@ export function HeroPanelActions() {
   } = useContext(gameDetailsContext);
 
   const { lastPacket } = useDownload();
-
-  const isGameDownloading =
-    game?.download?.status === "active" && lastPacket?.gameId === game?.id;
+  const extraction = useAppSelector((state) => state.download.extraction);
 
   const { updateLibrary } = useLibrary();
 
@@ -359,6 +361,161 @@ export function HeroPanelActions() {
       );
     }
 
+    const download = game?.download;
+
+    if (game && download) {
+      const isLivePacket = lastPacket?.gameId === game.id;
+      const isExtractingThisGame =
+        extraction?.visibleId === game.id ||
+        download.extracting ||
+        download.status === "extracting";
+
+      const showDownloads = () => navigate("/downloads");
+
+      if (isExtractingThisGame) {
+        const extractionProgress =
+          extraction?.visibleId === game.id
+            ? extraction.progress
+            : (download.extractionProgress ?? download.progress ?? 0);
+
+        return (
+          <Button
+            theme="outline"
+            className="hero-panel-actions__action"
+            progress={extractionProgress}
+            onClick={showDownloads}
+          >
+            <DownloadIcon />
+            {t("extracting", { ns: "downloads" })}{" "}
+            {formatDownloadProgress(extractionProgress)}
+          </Button>
+        );
+      }
+
+      if (download.status === "active") {
+        if (isLivePacket && lastPacket) {
+          if (lastPacket.isDownloadingMetadata) {
+            return (
+              <Button
+                theme="outline"
+                className="hero-panel-actions__action"
+                onClick={showDownloads}
+              >
+                <DownloadIcon />
+                {t("downloading_metadata", { ns: "downloads" })}
+              </Button>
+            );
+          }
+
+          if (lastPacket.isCheckingFiles) {
+            return (
+              <Button
+                theme="outline"
+                className="hero-panel-actions__action"
+                onClick={showDownloads}
+              >
+                <DownloadIcon />
+                {t("checking_files", { ns: "downloads" })}
+              </Button>
+            );
+          }
+
+          if (lastPacket.isReconnecting) {
+            return (
+              <Button
+                theme="outline"
+                className="hero-panel-actions__action"
+                onClick={showDownloads}
+              >
+                <DownloadIcon />
+                {t("reconnecting", { ns: "downloads" })}
+              </Button>
+            );
+          }
+
+          if (lastPacket.isRecovering) {
+            const recoveryProgress =
+              lastPacket.recoveryProgress ?? lastPacket.progress;
+
+            return (
+              <Button
+                theme="outline"
+                className="hero-panel-actions__action"
+                progress={recoveryProgress}
+                onClick={showDownloads}
+              >
+                <DownloadIcon />
+                {t("recovering", {
+                  ns: "downloads",
+                  percentage: formatDownloadProgress(recoveryProgress),
+                })}
+              </Button>
+            );
+          }
+        }
+
+        const downloadProgress = isLivePacket
+          ? Math.max(lastPacket?.progress ?? 0, download.progress ?? 0)
+          : (download.progress ?? 0);
+
+        return (
+          <Button
+            theme="outline"
+            className="hero-panel-actions__action"
+            progress={downloadProgress}
+            onClick={showDownloads}
+          >
+            <DownloadIcon />
+            {t("downloading", { ns: "library" })}{" "}
+            {formatDownloadProgress(downloadProgress)}
+          </Button>
+        );
+      }
+
+      if (download.status === "paused" && download.queued) {
+        return (
+          <Button
+            theme="outline"
+            className="hero-panel-actions__action"
+            progress={download.progress ?? 0}
+            onClick={showDownloads}
+          >
+            <DownloadIcon />
+            {t("queued", { ns: "downloads" })}
+          </Button>
+        );
+      }
+
+      if (download.status === "paused") {
+        return (
+          <Button
+            theme="outline"
+            className="hero-panel-actions__action"
+            progress={download.progress ?? 0}
+            onClick={showDownloads}
+          >
+            <DownloadIcon />
+            {t("paused", { ns: "downloads" })}{" "}
+            {formatDownloadProgress(download.progress ?? 0)}
+          </Button>
+        );
+      }
+
+      if (download.status === "error") {
+        return (
+          <Button
+            theme="outline"
+            className="hero-panel-actions__action"
+            progress={download.progress ?? 0}
+            onClick={showDownloads}
+          >
+            <DownloadIcon />
+            {t("download_halted_title", { ns: "downloads" })}
+          </Button>
+        );
+      }
+    }
+
     if (game?.executablePath || isPlayableClassics) {
       return (
         <Button
@@ -377,7 +534,6 @@ export function HeroPanelActions() {
       <Button
         onClick={() => setShowRepacksModal(true)}
         theme="outline"
-        disabled={isGameDownloading}
         className={`hero-panel-actions__action ${repacks.length === 0 ? "hero-panel-actions__action--disabled" : ""}`}
       >
         <DownloadIcon />

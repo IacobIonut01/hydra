@@ -12,6 +12,8 @@ export interface ButtonProps
   tooltip?: string;
   tooltipPlace?: PlacesType;
   theme?: "primary" | "outline" | "dark" | "danger" | "cloud";
+  /** 0–1 fill shown behind the content when set. */
+  progress?: number | null;
 }
 
 export const Button = forwardRef<HTMLButtonElement, Readonly<ButtonProps>>(
@@ -22,11 +24,15 @@ export const Button = forwardRef<HTMLButtonElement, Readonly<ButtonProps>>(
       className,
       tooltip,
       tooltipPlace = "top",
+      progress = null,
+      style,
       ...props
     },
     ref
   ) {
     const id = useId();
+    const hasProgress =
+      typeof progress === "number" && Number.isFinite(progress);
 
     const tooltipProps = tooltip
       ? {
@@ -41,7 +47,17 @@ export const Button = forwardRef<HTMLButtonElement, Readonly<ButtonProps>>(
         <button
           ref={ref}
           type="button"
-          className={cn("button", `button--${theme}`, className)}
+          className={cn("button", `button--${theme}`, className, {
+            "button--progress": hasProgress,
+          })}
+          style={
+            hasProgress
+              ? ({
+                  "--button-progress": Math.min(Math.max(progress, 0), 1),
+                  ...style,
+                } as React.CSSProperties)
+              : style
+          }
           {...props}
           {...tooltipProps}
         >

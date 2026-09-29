@@ -4,8 +4,11 @@ import {
   DownloadSimpleIcon,
   GearIcon,
   HeartIcon,
+  PackageIcon,
+  PauseIcon,
   PlayIcon,
   TrophyIcon,
+  WarningIcon,
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import cn from "classnames";
@@ -18,9 +21,12 @@ import {
 } from "../../../common";
 import {
   formatRelativeDate,
+  getHeroDownloadDisplay,
   resolvePreferredGameAssets,
+  type HeroDownloadDisplayKind,
 } from "../../../../helpers";
 import { useDominantColor } from "../../../../hooks";
+import { useBigPictureDownloadsStore } from "../../../../stores";
 import { type FocusOverrides } from "../../../../services";
 import { BIG_PICTURE_SIDEBAR_ITEM_IDS } from "../../../../layout";
 import {
@@ -39,9 +45,26 @@ import "./hero.scss";
 interface LibraryHeroProps {
   lastPlayedGames: LibraryGame[];
   onPrimaryAction?: (game: LibraryGame) => void;
+  onShowDownloadProgress?: (game: LibraryGame) => void;
   onOpenSettings?: (game: LibraryGame) => void;
   onToggleFavorite?: (game: LibraryGame) => Promise<void> | void;
   favoriteLoadingGameId?: string | null;
+}
+
+function getDownloadDisplayIcon(kind: HeroDownloadDisplayKind) {
+  switch (kind) {
+    case "extracting":
+    case "installing":
+      return <PackageIcon size={24} />;
+    case "queued":
+      return <ClockIcon size={24} />;
+    case "paused":
+      return <PauseIcon size={24} />;
+    case "error":
+      return <WarningIcon size={24} />;
+    default:
+      return <DownloadSimpleIcon size={24} />;
+  }
 }
 
 const FEATURED_GAME_INTERVAL = 60000;
@@ -62,6 +85,7 @@ function getLastPlayedLabel(
 export function LibraryHero({
   lastPlayedGames,
   onPrimaryAction,
+  onShowDownloadProgress,
   onOpenSettings,
   onToggleFavorite,
   favoriteLoadingGameId = null,
@@ -114,9 +138,29 @@ export function LibraryHero({
   const isFavoriteLoading =
     Boolean(featuredGame) && favoriteLoadingGameId === featuredGame?.id;
   const isPlayable = featuredGame ? isLibraryGamePlayable(featuredGame) : false;
+  const lastDownloadPacket = useBigPictureDownloadsStore(
+    (state) => state.lastPacket
+  );
+  const extractionProgressByGameId = useBigPictureDownloadsStore(
+    (state) => state.extractionProgressByGameId
+  );
+  const downloadDisplay = getHeroDownloadDisplay(
+    featuredGame,
+    lastDownloadPacket,
+    extractionProgressByGameId
+  );
 
   const handlePlayOrDownloadClick = () => {
     if (!featuredGame) return;
+    onPrimaryAction?.(featuredGame);
+  };
+
+  const handleShowDownloadProgressClick = () => {
+    if (!featuredGame) return;
+    if (onShowDownloadProgress) {
+      onShowDownloadProgress(featuredGame);
+      return;
+    }
     onPrimaryAction?.(featuredGame);
   };
 
@@ -210,6 +254,19 @@ export function LibraryHero({
                   onClick={handlePlayOrDownloadClick}
                 >
                   Launch Game
+                </Button>
+              ) : downloadDisplay ? (
+                <Button
+                  variant="primary"
+                  icon={getDownloadDisplayIcon(downloadDisplay.kind)}
+                  color={dominantColor ?? undefined}
+                  focusId={LIBRARY_HERO_LAUNCH_BUTTON_ID}
+                  focusNavigationOverrides={launchNavigationOverrides}
+                  disabled={!featuredGame}
+                  progress={downloadDisplay.progress}
+                  onClick={handleShowDownloadProgressClick}
+                >
+                  {downloadDisplay.label}
                 </Button>
               ) : (
                 <Button

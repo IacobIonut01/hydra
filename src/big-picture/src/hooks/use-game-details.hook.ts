@@ -197,10 +197,16 @@ export function useGameDetails(objectId: string, shop: GameShop) {
         refreshGameDetails().catch(() => {});
       });
 
+    const unsubscribeDownloadsUpdated =
+      globalThis.window.electron.onDownloadsUpdated(() => {
+        updateGame().catch(() => {});
+      });
+
     return () => {
       unsubscribeLibraryBatch();
+      unsubscribeDownloadsUpdated();
     };
-  }, [refreshGameDetails]);
+  }, [refreshGameDetails, updateGame]);
 
   const openGame = useCallback(
     async (discPath?: string, force?: boolean) => {

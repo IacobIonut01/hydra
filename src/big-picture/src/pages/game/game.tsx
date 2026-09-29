@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   buildLibraryToastOptions,
+  getBigPictureDownloadsPath,
   getBigPictureGameDetailsPath,
   getItemFocusTarget,
 } from "../../helpers";
@@ -1475,6 +1476,9 @@ export default function Game() {
             onPlay={handlePlayGame}
             onDownload={handleOpenDownloadModal}
             onInstall={handleInstallGame}
+            onShowDownloadProgress={() =>
+              navigate(getBigPictureDownloadsPath())
+            }
             onAddToLibrary={handleAddToLibrary}
             onOpenDownloadOptions={handleOpenDownloadModal}
             onOpenSettings={() => setIsGameSettingsModalOpen(true)}

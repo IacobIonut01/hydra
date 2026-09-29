@@ -63,6 +63,11 @@ export function getBigPictureGameLaunchPath(game: GameIdentity) {
   return `${basePath}/launching/${game.shop}/${game.objectId}`;
 }
 
+export function getBigPictureDownloadsPath() {
+  const basePath = IS_DESKTOP ? "/big-picture" : "";
+  return `${basePath}/downloads`;
+}
+
 export function getGameIdentityKey(
   game: GameIdentity,
   options: GameIdentityKeyOptions = {}

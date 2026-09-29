@@ -22,6 +22,15 @@
     cursor: not-allowed;
   }
 
+  &--progress {
+    background-image: linear-gradient(
+      to right,
+      color-mix(in srgb, currentColor 22%, transparent)
+        calc(var(--button-progress, 0) * 100%),
+      transparent calc(var(--button-progress, 0) * 100%)
+    );
+  }
+
   &--primary {
     &:hover {
       background-color: #dadbe1;

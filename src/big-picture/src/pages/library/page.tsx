@@ -12,6 +12,7 @@ import { FolderOpen } from "@phosphor-icons/react";
 import { IS_DESKTOP } from "../../constants";
 import {
   buildLibraryToastOptions,
+  getBigPictureDownloadsPath,
   getBigPictureGameAchievementsPath,
 } from "../../helpers";
 import {
@@ -298,6 +299,10 @@ export default function LibraryPage() {
     [navigate]
   );
 
+  const handleShowDownloadProgress = useCallback(() => {
+    navigate(getBigPictureDownloadsPath());
+  }, [navigate]);
+
   const {
     pendingAction,
     isSubmittingAction,
@@ -328,8 +333,14 @@ export default function LibraryPage() {
       }
     );
 
+    const unsubscribeDownloadsUpdated =
+      globalThis.window.electron.onDownloadsUpdated(() => {
+        updateLibrary();
+      });
+
     return () => {
       unsubscribe();
+      unsubscribeDownloadsUpdated();
     };
   }, [updateLibrary]);
 
@@ -428,6 +439,7 @@ export default function LibraryPage() {
         >
           <LibraryHero
             onPrimaryAction={handleHeroPrimaryAction}
+            onShowDownloadProgress={handleShowDownloadProgress}
             onOpenSettings={handleOpenHeroSettings}
             favoriteLoadingGameId={favoriteLoadingGameId}
             lastPlayedGames={lastPlayedGames}

@@ -32,6 +32,8 @@ const sizes = {
 export interface ButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   loading?: boolean;
+  /** 0–1 fill shown behind the content when set. */
+  progress?: number | null;
   variant?: keyof typeof variants;
   size?: keyof typeof sizes;
   children: ReactNode;
@@ -57,6 +59,7 @@ function isExternalHref(href: string) {
 export function Button({
   loading = false,
   disabled = false,
+  progress = null,
   size = "medium",
   variant = "primary",
   iconPosition = "left",
@@ -76,6 +79,7 @@ export function Button({
   ...props
 }: Readonly<ButtonProps>) {
   const isEffectivelyDisabled = disabled || loading;
+  const hasProgress = typeof progress === "number" && Number.isFinite(progress);
   const buttonClassName = cn(
     "button",
     variants[variant],
@@ -83,11 +87,17 @@ export function Button({
     className,
     {
       "button--disabled": isEffectivelyDisabled,
+      "button--progress": hasProgress,
     }
   );
 
   const buttonStyle = {
     ...style,
+    ...(hasProgress
+      ? {
+          "--button-progress": Math.min(Math.max(progress, 0), 1),
+        }
+      : {}),
     ...(color
       ? {
           "--button-custom-color": color,
