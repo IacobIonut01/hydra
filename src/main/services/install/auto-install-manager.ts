@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import fs from "node:fs";
 import { execFile, type ChildProcess } from "node:child_process";
 
@@ -581,10 +582,16 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
     return;
   }
 
-  const installDirPath = path.join(
-    installRoot,
-    sanitizeInstallDirName(game.title)
-  );
+  // download.installPath is persisted back as the full install dir, so a
+  // stored path may already carry the title suffix -- appending it again
+  // nests "Game\Game\Game..." deeper on every retry. Strip every trailing
+  // segment that already equals the title, then append it exactly once.
+  const titleDirName = sanitizeInstallDirName(game.title);
+  let installBase = installRoot;
+  while (path.basename(installBase) === titleDirName) {
+    installBase = path.dirname(installBase);
+  }
+  const installDirPath = path.join(installBase, titleDirName);
 
   const requiredBytes =
     (download.selectedFilesSize ?? download.fileSize ?? 0) *
@@ -647,7 +654,13 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
   }
 
   const interactiveAllowed = userPreferences?.autoInstallInteractive ?? true;
-  const innoLogPath = path.join(gamePath, "hydra-inno-install.log");
+  // Keep /LOG out of the repack folder: Inno exits 1 before writing a byte
+  // when the log target cannot be created, and an elevated token may not
+  // share the user's view of the download drive. tmpdir is always writable.
+  const innoLogPath = path.join(
+    os.tmpdir(),
+    `hydra-inno-install-${objectId}.log`
+  );
 
   // Read the setup's own [Languages] table so /LANG names a language the
   // repack actually ships instead of guessing "english". Falls back to
