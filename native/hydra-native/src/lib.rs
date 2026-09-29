@@ -117,6 +117,11 @@ pub fn focus_game_window(executable_names: Vec<String>) -> napi::Result<bool> {
     focus::focus_game_window(&executable_names).map_err(Error::from_reason)
 }
 
+#[napi]
+pub fn is_game_foreground(executable_names: Vec<String>) -> bool {
+    focus::is_game_foreground(&executable_names)
+}
+
 #[napi(object)]
 pub struct InnoSetupLanguageInfo {
     pub name: String,

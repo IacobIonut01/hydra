@@ -145,6 +145,7 @@ type HydraNativeModule = {
   sendVirtualKeyChord?: (virtualKeys: number[]) => boolean;
   isTextInputFocused?: () => boolean;
   focusGameWindow?: (executableNames: string[]) => boolean;
+  isGameForeground?: (executableNames: string[]) => boolean;
   inspectInnoSetup?: (setupPath: string) => InnoSetupInfo | null;
   muteAudioByProcessName?: (processName: string, muted: boolean) => boolean;
   buildLocalGameSnapshotPipeline: (
@@ -547,6 +548,20 @@ export class NativeAddon {
     } catch (error) {
       logger.error("Failed to focus game window", error);
       return false;
+    }
+  }
+
+  /**
+   * Whether the foreground window belongs to a game process. Reports `true`
+   * when the platform can't inspect the foreground window (Wayland, stale
+   * native binaries) so callers only act on a definitive "not foreground".
+   */
+  public static isGameForeground(executableNames: string[]): boolean {
+    try {
+      return this.load().isGameForeground?.(executableNames) ?? true;
+    } catch (error) {
+      logger.error("Failed to check game foreground", error);
+      return true;
     }
   }
 

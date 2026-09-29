@@ -89,20 +89,13 @@ pub fn is_text_input_focused() -> bool {
 /// a window whose _NET_WM_PID matches and an _NET_ACTIVE_WINDOW client
 /// message asks the WM to raise it (EWMH-compliant WMs only).
 #[cfg(target_os = "windows")]
-pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
+fn pids_for_image_names(executable_names: &[String]) -> Result<Vec<u32>, String> {
     use std::collections::HashSet;
     use std::mem::size_of;
-    use windows::core::BOOL;
-    use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM};
+    use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
-    };
-    use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
-    use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongW,
-        GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow,
-        GWL_EXSTYLE, GW_OWNER, SW_RESTORE, WS_EX_TOOLWINDOW,
     };
 
     let wanted: HashSet<String> = executable_names
@@ -110,7 +103,7 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
         .map(|name| name.to_lowercase())
         .collect();
 
-    let pids = unsafe {
+    unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
             .map_err(|error| format!("failed to snapshot processes: {}", error.message()))?;
 
@@ -137,9 +130,50 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
             }
         }
         let _ = CloseHandle(snapshot);
-        pids
+        Ok(pids)
+    }
+}
+
+/// Whether the foreground window belongs to a process whose image name is in
+/// `executable_names`. Used to restore Big Picture the moment a game stops
+/// drawing over it, which precedes full process exit by a visible margin.
+/// Platforms without a foreground-window concept report `true` ("still in
+/// the game") so the normal close path keeps doing the restore.
+#[cfg(target_os = "windows")]
+pub fn is_game_foreground(executable_names: &[String]) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowThreadProcessId,
     };
 
+    let pids = pids_for_image_names(executable_names).unwrap_or_default();
+    if pids.is_empty() {
+        return false;
+    }
+
+    unsafe {
+        let foreground = GetForegroundWindow();
+        if foreground.0.is_null() {
+            return false;
+        }
+
+        let mut foreground_pid = 0u32;
+        GetWindowThreadProcessId(foreground, Some(&mut foreground_pid));
+        pids.contains(&foreground_pid)
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
+    use windows::core::BOOL;
+    use windows::Win32::Foundation::{HWND, LPARAM};
+    use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongW,
+        GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow,
+        GWL_EXSTYLE, GW_OWNER, SW_RESTORE, WS_EX_TOOLWINDOW,
+    };
+
+    let pids = pids_for_image_names(executable_names)?;
     if pids.is_empty() {
         return Ok(false);
     }
@@ -202,11 +236,8 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
 }
 
 #[cfg(target_os = "linux")]
-pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
+fn pids_for_image_names(executable_names: &[String]) -> Result<Vec<u32>, String> {
     use std::collections::HashSet;
-    use x11rb::connection::Connection;
-    use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask};
-    use x11rb::rust_connection::RustConnection;
 
     let wanted: HashSet<String> = executable_names
         .iter()
@@ -230,6 +261,32 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
             pids.insert(process_id);
         }
     }
+    Ok(pids.into_iter().collect())
+}
+
+/// Whether the active window belongs to a matching game process. When the
+/// compositor can't report an active window (Wayland), report `true` so Big
+/// Picture stays hidden until the real close path restores it.
+#[cfg(target_os = "linux")]
+pub fn is_game_foreground(executable_names: &[String]) -> bool {
+    let pids = pids_for_image_names(executable_names).unwrap_or_default();
+    if pids.is_empty() {
+        return false;
+    }
+
+    let Some((_, Some(active_pid))) = crate::active_window::get_active_window() else {
+        return true;
+    };
+    pids.contains(&active_pid)
+}
+
+#[cfg(target_os = "linux")]
+pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask};
+    use x11rb::rust_connection::RustConnection;
+
+    let pids = pids_for_image_names(executable_names)?;
     if pids.is_empty() {
         return Ok(false);
     }
@@ -298,4 +355,9 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
 pub fn focus_game_window(_executable_names: &[String]) -> Result<bool, String> {
     Ok(false)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+pub fn is_game_foreground(_executable_names: &[String]) -> bool {
+    true
 }

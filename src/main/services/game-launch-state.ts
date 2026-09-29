@@ -5,12 +5,15 @@ import type {
   GameShop,
   LaunchSource,
 } from "@types";
-import { levelKeys } from "@main/level";
+import path from "node:path";
+import { gamesSublevel, levelKeys } from "@main/level";
 import { logger } from "./logger";
+import { NativeAddon } from "./native-addon";
 import { WindowManager } from "./window-manager";
 
 const AWAITING_PROCESS_TIMEOUT_MS = 45_000;
 const BIG_PICTURE_HIDE_DELAY_MS = 1_500;
+const BIG_PICTURE_FOREGROUND_POLL_MS = 400;
 
 interface TrackedLaunch {
   shop: GameShop;
@@ -22,6 +25,7 @@ interface TrackedLaunch {
   detail: string | null;
   awaitingProcessTimer: NodeJS.Timeout | null;
   bigPictureHideTimer: NodeJS.Timeout | null;
+  bigPictureForegroundTimer: NodeJS.Timeout | null;
   bigPictureHidden: boolean;
 }
 
@@ -50,6 +54,11 @@ const clearTimers = (launch: TrackedLaunch) => {
   if (launch.bigPictureHideTimer) {
     clearTimeout(launch.bigPictureHideTimer);
     launch.bigPictureHideTimer = null;
+  }
+
+  if (launch.bigPictureForegroundTimer) {
+    clearInterval(launch.bigPictureForegroundTimer);
+    launch.bigPictureForegroundTimer = null;
   }
 };
 
@@ -90,6 +99,7 @@ export const beginGameLaunch = (
     detail: null,
     awaitingProcessTimer: null,
     bigPictureHideTimer: null,
+    bigPictureForegroundTimer: null,
     bigPictureHidden: previous?.bigPictureHidden ?? false,
   };
 
@@ -199,8 +209,63 @@ export const markGameRunning = (gameKey: string) => {
     if (bigPicture?.isVisible()) {
       bigPicture.hide();
       launch.bigPictureHidden = true;
+      void armBigPictureForegroundWatch(gameKey, launch);
     }
   }, BIG_PICTURE_HIDE_DELAY_MS);
+};
+
+// While BP is hidden for a running game, watch whether a game process still
+// owns the foreground window. A game tearing down drops foreground well
+// before its pid actually dies, so restoring here beats waiting on process
+// exit — the user lands back on BP instead of the desktop. Two consecutive
+// misses are required so a launcher handoff or a transient focus steal
+// (UAC, overlays) doesn't pop BP mid-launch.
+const armBigPictureForegroundWatch = async (
+  gameKey: string,
+  launch: TrackedLaunch
+) => {
+  if (launch.bigPictureForegroundTimer) return;
+
+  const game = await gamesSublevel.get(gameKey);
+  const executableNames = game
+    ? [game.executablePath, ...(game.trackingExecutablePaths ?? [])]
+        .filter((executablePath): executablePath is string =>
+          Boolean(executablePath)
+        )
+        .map((executablePath) => path.basename(executablePath))
+    : [];
+
+  if (!executableNames.length) return;
+  if (trackedLaunches.get(gameKey) !== launch || !launch.bigPictureHidden) {
+    return;
+  }
+
+  let misses = 0;
+  launch.bigPictureForegroundTimer = setInterval(() => {
+    const disarm = () => {
+      if (launch.bigPictureForegroundTimer) {
+        clearInterval(launch.bigPictureForegroundTimer);
+        launch.bigPictureForegroundTimer = null;
+      }
+    };
+
+    if (trackedLaunches.get(gameKey) !== launch || !launch.bigPictureHidden) {
+      disarm();
+      return;
+    }
+
+    misses = NativeAddon.isGameForeground(executableNames) ? 0 : misses + 1;
+    if (misses < 2) return;
+
+    disarm();
+    launch.bigPictureHidden = false;
+
+    const bigPicture = WindowManager.bigPictureWindow;
+    if (bigPicture && !bigPicture.isVisible()) {
+      bigPicture.show();
+      if (bigPicture.isMinimized()) bigPicture.restore();
+    }
+  }, BIG_PICTURE_FOREGROUND_POLL_MS);
 };
 
 export const hideBigPictureForGame = (gameKey: string) => {
@@ -216,6 +281,7 @@ export const hideBigPictureForGame = (gameKey: string) => {
   if (bigPicture?.isVisible()) {
     bigPicture.hide();
     launch.bigPictureHidden = true;
+    void armBigPictureForegroundWatch(gameKey, launch);
   }
 };
 
