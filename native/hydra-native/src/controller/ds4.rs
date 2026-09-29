@@ -244,14 +244,8 @@ mod tests {
             let len = r.len();
             assert_eq!(r[0], if long_form { 0x15 } else { 0x11 });
             assert_eq!(r[1], 0xC4);
-            let expected =
-                crc32::crc32_with_head(crc32::BT_OUTPUT_HEAD, &r[..len - 4]);
-            let stored = u32::from_le_bytes([
-                r[len - 4],
-                r[len - 3],
-                r[len - 2],
-                r[len - 1],
-            ]);
+            let expected = crc32::crc32_with_head(crc32::BT_OUTPUT_HEAD, &r[..len - 4]);
+            let stored = u32::from_le_bytes([r[len - 4], r[len - 3], r[len - 2], r[len - 1]]);
             assert_eq!(expected, stored);
         }
     }

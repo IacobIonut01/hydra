@@ -6,7 +6,10 @@
 //! is unsupported for now.
 
 #[cfg(target_os = "windows")]
-fn key_input(vk: u16, flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS) -> windows::Win32::UI::Input::KeyboardAndMouse::INPUT {
+fn key_input(
+    vk: u16,
+    flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS,
+) -> windows::Win32::UI::Input::KeyboardAndMouse::INPUT {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, VIRTUAL_KEY,
     };
@@ -48,14 +51,16 @@ fn flush_inputs(
 
 #[cfg(target_os = "windows")]
 fn is_extended_virtual_key(vk: u16) -> bool {
-    matches!(vk, 0x21..=0x28 | 0x2d | 0x2e | 0x5b | 0x5c | 0x6f | 0xa2 | 0xa3)
+    matches!(
+        vk,
+        0x21..=0x28 | 0x2d | 0x2e | 0x5b | 0x5c | 0x6f | 0xa2 | 0xa3
+    )
 }
 
 #[cfg(target_os = "windows")]
 pub fn send_text_input(text: &str) -> Result<bool, String> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE,
-        VIRTUAL_KEY,
+        INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, VIRTUAL_KEY,
     };
 
     let mut inputs: Vec<INPUT> = Vec::with_capacity(text.encode_utf16().count() * 2);
@@ -126,26 +131,26 @@ mod linux {
 
     fn vk_to_keysym(vk: u32) -> Option<u32> {
         Some(match vk {
-            0x08 => 0xff08, // XK_BackSpace
-            0x09 => 0xff09, // XK_Tab
-            0x0d => 0xff0d, // XK_Return
-            0x10 => 0xffe1, // XK_Shift_L
-            0x11 => 0xffe3, // XK_Control_L
-            0x12 => 0xffe9, // XK_Alt_L
-            0x1b => 0xff1b, // XK_Escape
-            0x20 => 0x0020, // XK_space
-            0x21 => 0xff55, // XK_Page_Up
-            0x22 => 0xff56, // XK_Page_Down
-            0x23 => 0xff57, // XK_End
-            0x24 => 0xff50, // XK_Home
-            0x25 => 0xff51, // XK_Left
-            0x26 => 0xff52, // XK_Up
-            0x27 => 0xff53, // XK_Right
-            0x28 => 0xff54, // XK_Down
-            0x2d => 0xff63, // XK_Insert
-            0x2e => 0xffff, // XK_Delete
-            vk @ 0x30..=0x39 => vk,          // digits: VK == keysym
-            vk @ 0x41..=0x5a => vk + 0x20,   // letters: VK_A..Z -> a..z keysyms
+            0x08 => 0xff08,                // XK_BackSpace
+            0x09 => 0xff09,                // XK_Tab
+            0x0d => 0xff0d,                // XK_Return
+            0x10 => 0xffe1,                // XK_Shift_L
+            0x11 => 0xffe3,                // XK_Control_L
+            0x12 => 0xffe9,                // XK_Alt_L
+            0x1b => 0xff1b,                // XK_Escape
+            0x20 => 0x0020,                // XK_space
+            0x21 => 0xff55,                // XK_Page_Up
+            0x22 => 0xff56,                // XK_Page_Down
+            0x23 => 0xff57,                // XK_End
+            0x24 => 0xff50,                // XK_Home
+            0x25 => 0xff51,                // XK_Left
+            0x26 => 0xff52,                // XK_Up
+            0x27 => 0xff53,                // XK_Right
+            0x28 => 0xff54,                // XK_Down
+            0x2d => 0xff63,                // XK_Insert
+            0x2e => 0xffff,                // XK_Delete
+            vk @ 0x30..=0x39 => vk,        // digits: VK == keysym
+            vk @ 0x41..=0x5a => vk + 0x20, // letters: VK_A..Z -> a..z keysyms
             _ => return None,
         })
     }
@@ -190,11 +195,7 @@ mod linux {
                 .reply()
                 .map_err(|error| format!("GetKeyboardMapping reply failed: {error}"))?;
 
-            Ok((
-                first,
-                reply.keysyms,
-                reply.keysyms_per_keycode as usize,
-            ))
+            Ok((first, reply.keysyms, reply.keysyms_per_keycode as usize))
         }
 
         fn keysym_to_keycode(&self, keysym: u32) -> Result<Option<u8>, String> {

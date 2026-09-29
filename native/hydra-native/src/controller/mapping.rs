@@ -1,7 +1,7 @@
 //! Remap engine: derives digital bits from axes, applies the profile's
 //! remap/deadzone/swap, and computes the per-frame lightbar color.
 
-use super::controls::{get, set, ALL_CONTROLS, Ds4Control};
+use super::controls::{get, set, Ds4Control, ALL_CONTROLS};
 use super::state::{LightbarMode, ParsedState, ProfileSpec};
 
 const STICK_DIR_THRESHOLD: i32 = 50; // ~0.4 of the 0..255 range past center
@@ -126,7 +126,12 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> [u8; 3] {
 
 /// Current lightbar color + flash duty cycle for a frame.
 /// `tick` is a millisecond counter driving rainbow hue and flash-at blink.
-pub fn lightbar_for(profile: &ProfileSpec, battery: u8, charging: bool, tick: u64) -> ([u8; 3], u8, u8) {
+pub fn lightbar_for(
+    profile: &ProfileSpec,
+    battery: u8,
+    charging: bool,
+    tick: u64,
+) -> ([u8; 3], u8, u8) {
     let spec = &profile.lightbar;
     let rgb = match spec.mode {
         LightbarMode::Static => [spec.r, spec.g, spec.b],
@@ -141,11 +146,7 @@ pub fn lightbar_for(profile: &ProfileSpec, battery: u8, charging: bool, tick: u6
             } else {
                 ((1.0 - t) * 2.0, 1.0)
             };
-            [
-                (r * 255.0).round() as u8,
-                (g * 255.0).round() as u8,
-                0,
-            ]
+            [(r * 255.0).round() as u8, (g * 255.0).round() as u8, 0]
         }
     };
 

@@ -11,17 +11,14 @@ pub fn is_text_input_focused() -> bool {
     use std::mem::size_of;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::System::Com::{
-        CLSCTX_ALL, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
-        CoUninitialize,
+        CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::System::Threading::GetCurrentProcessId;
     use windows::Win32::UI::Accessibility::{
-        CUIAutomation, IUIAutomation, UIA_DocumentControlTypeId,
-        UIA_EditControlTypeId,
+        CUIAutomation, IUIAutomation, UIA_DocumentControlTypeId, UIA_EditControlTypeId,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GUITHREADINFO, GetForegroundWindow, GetGUIThreadInfo,
-        GetWindowThreadProcessId,
+        GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId, GUITHREADINFO,
     };
 
     unsafe {
@@ -31,8 +28,7 @@ pub fn is_text_input_focused() -> bool {
         }
 
         let mut foreground_pid = 0u32;
-        let thread_id =
-            GetWindowThreadProcessId(foreground, Some(&mut foreground_pid));
+        let thread_id = GetWindowThreadProcessId(foreground, Some(&mut foreground_pid));
         if foreground_pid == 0 || foreground_pid == GetCurrentProcessId() {
             return false;
         }
@@ -64,10 +60,7 @@ pub fn is_text_input_focused() -> bool {
             }
 
             let control_type = element.CurrentControlType().ok()?;
-            Some(
-                control_type == UIA_EditControlTypeId
-                    || control_type == UIA_DocumentControlTypeId,
-            )
+            Some(control_type == UIA_EditControlTypeId || control_type == UIA_DocumentControlTypeId)
         })();
 
         if initialized {
@@ -102,15 +95,14 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
     use windows::core::BOOL;
     use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM};
     use windows::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW,
-        Process32NextW, TH32CS_SNAPPROCESS,
+        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+        TH32CS_SNAPPROCESS,
     };
     use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
     use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, EnumWindows, GW_OWNER, GWL_EXSTYLE,
-        GetForegroundWindow, GetWindow, GetWindowLongW, GetWindowThreadProcessId,
-        IsIconic, IsWindowVisible, SW_RESTORE, SetForegroundWindow, ShowWindow,
-        WS_EX_TOOLWINDOW,
+        BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindow, GetWindowLongW,
+        GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow,
+        GWL_EXSTYLE, GW_OWNER, SW_RESTORE, WS_EX_TOOLWINDOW,
     };
 
     let wanted: HashSet<String> = executable_names
@@ -163,10 +155,7 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
             let mut process_id = 0u32;
             GetWindowThreadProcessId(hwnd, Some(&mut process_id));
             if context.pids.contains(&process_id) {
-                let unowned = GetWindow(hwnd, GW_OWNER)
-                    .unwrap_or_default()
-                    .0
-                    .is_null();
+                let unowned = GetWindow(hwnd, GW_OWNER).unwrap_or_default().0.is_null();
                 let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
                 if unowned && ex_style & WS_EX_TOOLWINDOW.0 == 0 {
                     context.hwnds.push(hwnd);
@@ -216,9 +205,7 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
 pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
     use std::collections::HashSet;
     use x11rb::connection::Connection;
-    use x11rb::protocol::xproto::{
-        AtomEnum, ClientMessageEvent, ConnectionExt, EventMask,
-    };
+    use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask};
     use x11rb::rust_connection::RustConnection;
 
     let wanted: HashSet<String> = executable_names
@@ -227,8 +214,8 @@ pub fn focus_game_window(executable_names: &[String]) -> Result<bool, String> {
         .collect();
 
     let mut pids = HashSet::new();
-    let entries = std::fs::read_dir("/proc")
-        .map_err(|error| format!("failed to read /proc: {}", error))?;
+    let entries =
+        std::fs::read_dir("/proc").map_err(|error| format!("failed to read /proc: {}", error))?;
     for entry in entries.flatten() {
         let Ok(process_id) = entry.file_name().to_string_lossy().parse::<u32>() else {
             continue;

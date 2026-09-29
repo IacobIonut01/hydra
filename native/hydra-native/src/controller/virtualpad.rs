@@ -3,9 +3,9 @@
 //! ViGEmBus via `vigemclient.dll` loaded at runtime). Unsupported platforms
 //! return an error at creation and `probe_support` reports them upfront.
 
-use super::state::ParsedState;
 #[cfg(any(target_os = "linux", target_os = "windows", test))]
 use super::controls::{self, Ds4Control};
+use super::state::ParsedState;
 
 pub trait VirtualPad: Send {
     fn send(&mut self, state: &ParsedState) -> std::io::Result<()>;
@@ -60,21 +60,81 @@ fn stick_to_i16(axis: u8, invert: bool) -> i16 {
 pub fn to_xusb(s: &ParsedState) -> XusbReport {
     let p = s.pressed;
     let mut r = XusbReport::default();
-    r.buttons |= if controls::get(p, Ds4Control::DpadUp) { xusb::DPAD_UP } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::DpadDown) { xusb::DPAD_DOWN } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::DpadLeft) { xusb::DPAD_LEFT } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::DpadRight) { xusb::DPAD_RIGHT } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Options) { xusb::START } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Share) { xusb::BACK } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::L3) { xusb::LEFT_THUMB } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::R3) { xusb::RIGHT_THUMB } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::L1) { xusb::LEFT_SHOULDER } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::R1) { xusb::RIGHT_SHOULDER } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Ps) { xusb::GUIDE } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Cross) { xusb::A } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Circle) { xusb::B } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Square) { xusb::X } else { 0 };
-    r.buttons |= if controls::get(p, Ds4Control::Triangle) { xusb::Y } else { 0 };
+    r.buttons |= if controls::get(p, Ds4Control::DpadUp) {
+        xusb::DPAD_UP
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::DpadDown) {
+        xusb::DPAD_DOWN
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::DpadLeft) {
+        xusb::DPAD_LEFT
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::DpadRight) {
+        xusb::DPAD_RIGHT
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Options) {
+        xusb::START
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Share) {
+        xusb::BACK
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::L3) {
+        xusb::LEFT_THUMB
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::R3) {
+        xusb::RIGHT_THUMB
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::L1) {
+        xusb::LEFT_SHOULDER
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::R1) {
+        xusb::RIGHT_SHOULDER
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Ps) {
+        xusb::GUIDE
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Cross) {
+        xusb::A
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Circle) {
+        xusb::B
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Square) {
+        xusb::X
+    } else {
+        0
+    };
+    r.buttons |= if controls::get(p, Ds4Control::Triangle) {
+        xusb::Y
+    } else {
+        0
+    };
     // Axes: [lx, ly, rx, ry, l2, r2]
     r.left_x = stick_to_i16(s.axes[0], false);
     r.left_y = stick_to_i16(s.axes[1], true);
@@ -166,7 +226,13 @@ mod platform {
     }
 
     impl LinuxPad {
-        fn push_key(events: &mut Vec<InputEvent>, code: KeyCode, before: u16, after: u16, bit: u16) {
+        fn push_key(
+            events: &mut Vec<InputEvent>,
+            code: KeyCode,
+            before: u16,
+            after: u16,
+            bit: u16,
+        ) {
             if (before ^ after) & bit != 0 {
                 events.push(InputEvent::new(
                     EventType::KEY.0,
@@ -233,12 +299,42 @@ mod platform {
                 0xF,
             );
 
-            Self::push_axis(&mut events, AbsoluteAxisCode::ABS_X, prev.left_x as i32, next.left_x as i32);
-            Self::push_axis(&mut events, AbsoluteAxisCode::ABS_Y, prev.left_y as i32, next.left_y as i32);
-            Self::push_axis(&mut events, AbsoluteAxisCode::ABS_RX, prev.right_x as i32, next.right_x as i32);
-            Self::push_axis(&mut events, AbsoluteAxisCode::ABS_RY, prev.right_y as i32, next.right_y as i32);
-            Self::push_axis(&mut events, AbsoluteAxisCode::ABS_Z, prev.left_trigger as i32, next.left_trigger as i32);
-            Self::push_axis(&mut events, AbsoluteAxisCode::ABS_RZ, prev.right_trigger as i32, next.right_trigger as i32);
+            Self::push_axis(
+                &mut events,
+                AbsoluteAxisCode::ABS_X,
+                prev.left_x as i32,
+                next.left_x as i32,
+            );
+            Self::push_axis(
+                &mut events,
+                AbsoluteAxisCode::ABS_Y,
+                prev.left_y as i32,
+                next.left_y as i32,
+            );
+            Self::push_axis(
+                &mut events,
+                AbsoluteAxisCode::ABS_RX,
+                prev.right_x as i32,
+                next.right_x as i32,
+            );
+            Self::push_axis(
+                &mut events,
+                AbsoluteAxisCode::ABS_RY,
+                prev.right_y as i32,
+                next.right_y as i32,
+            );
+            Self::push_axis(
+                &mut events,
+                AbsoluteAxisCode::ABS_Z,
+                prev.left_trigger as i32,
+                next.left_trigger as i32,
+            );
+            Self::push_axis(
+                &mut events,
+                AbsoluteAxisCode::ABS_RZ,
+                prev.right_trigger as i32,
+                next.right_trigger as i32,
+            );
 
             if events.is_empty() {
                 return Ok(());
@@ -394,7 +490,10 @@ mod tests {
         controls::set(&mut s.pressed, Ds4Control::Triangle, true);
         controls::set(&mut s.pressed, Ds4Control::Ps, true);
         let r = to_xusb(&s);
-        assert_eq!(r.buttons & (xusb::A | xusb::Y | xusb::GUIDE), xusb::A | xusb::Y | xusb::GUIDE);
+        assert_eq!(
+            r.buttons & (xusb::A | xusb::Y | xusb::GUIDE),
+            xusb::A | xusb::Y | xusb::GUIDE
+        );
         assert_eq!(r.buttons & xusb::B, 0);
     }
 

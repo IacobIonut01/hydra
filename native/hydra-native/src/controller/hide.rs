@@ -245,9 +245,8 @@ mod win {
             let instance = instance_path(device_path).ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidInput, "not a HID device path")
             })?;
-            let file = open_control().map_err(|e| {
-                io::Error::new(e.kind(), format!("HidHide control device: {e}"))
-            })?;
+            let file = open_control()
+                .map_err(|e| io::Error::new(e.kind(), format!("HidHide control device: {e}")))?;
             ensure_whitelisted(&file)?;
             // Session blacklist (self-clearing) first; older drivers reject
             // the unknown IOCTL and fall through to the persistent list.

@@ -28,7 +28,9 @@ use controls::{get, ALL_CONTROLS};
 use ids::{Model, Transport, SONY_VID};
 use session::{spawn_session, SessionCmd, SessionHandle};
 use state::{ParsedState, ProfileSpec, TriggerEffect};
-use types::{ControllerDeviceInfo, ControllerEvent, ControllerState, StickState, TouchPoint, Vector3};
+use types::{
+    ControllerDeviceInfo, ControllerEvent, ControllerState, StickState, TouchPoint, Vector3,
+};
 
 pub type EventTsfn = ThreadsafeFunction<ControllerEvent, (), ControllerEvent, Status, false>;
 pub type Emitter = Arc<Mutex<Option<EventTsfn>>>;
@@ -157,7 +159,13 @@ fn pick_interface<'a>(candidates: &[&'a DeviceInfo]) -> Option<&'a DeviceInfo> {
         .or_else(|| sorted.first().copied())
 }
 
-fn enumerate() -> Vec<(String, Model, Transport, ControllerDeviceInfo, DeviceInfoOwned)> {
+fn enumerate() -> Vec<(
+    String,
+    Model,
+    Transport,
+    ControllerDeviceInfo,
+    DeviceInfoOwned,
+)> {
     let mut result = Vec::new();
     let Ok(guard) = hid_api() else {
         return result;
@@ -273,8 +281,7 @@ fn start_monitor() {
             std::thread::sleep(Duration::from_millis(1200));
             prune_dead_sessions(rt);
 
-            let current: Vec<String> =
-                enumerate().into_iter().map(|(id, ..)| id).collect();
+            let current: Vec<String> = enumerate().into_iter().map(|(id, ..)| id).collect();
             if current != seen {
                 seen = current;
                 let emitter = Arc::clone(&rt.emitter);
@@ -284,9 +291,7 @@ fn start_monitor() {
     });
 }
 
-fn find_device(
-    id: &str,
-) -> Option<(Model, Transport, ControllerDeviceInfo, DeviceInfoOwned)> {
+fn find_device(id: &str) -> Option<(Model, Transport, ControllerDeviceInfo, DeviceInfoOwned)> {
     enumerate()
         .into_iter()
         .find(|(dev_id, ..)| dev_id == id)
@@ -405,12 +410,7 @@ pub fn controller_set_player_leds(id: String, mask: u8) -> bool {
 }
 
 #[napi]
-pub fn controller_set_trigger_effect(
-    id: String,
-    left: bool,
-    mode: u8,
-    params: Vec<u8>,
-) -> bool {
+pub fn controller_set_trigger_effect(id: String, left: bool, mode: u8, params: Vec<u8>) -> bool {
     with_session(&id, |s| {
         let mut p = [0u8; 10];
         for (i, v) in params.iter().take(10).enumerate() {

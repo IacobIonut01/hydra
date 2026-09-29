@@ -6,8 +6,8 @@
 
 #[cfg(target_os = "windows")]
 pub fn mute_audio_by_process_name(process_name: &str, muted: bool) -> Result<bool, String> {
-    use windows::core::Interface;
-    use windows::Win32::Foundation::{CloseHandle, BOOL};
+    use windows::core::{Interface, BOOL};
+    use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::Media::Audio::{
         eMultimedia, eRender, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator,
         ISimpleAudioVolume, MMDeviceEnumerator,
@@ -98,10 +98,7 @@ pub fn mute_audio_by_process_name(process_name: &str, muted: bool) -> Result<boo
                 continue;
             }
             if let Ok(volume) = control.cast::<ISimpleAudioVolume>() {
-                if volume
-                    .SetMute(BOOL(muted as i32), std::ptr::null())
-                    .is_ok()
-                {
+                if volume.SetMute(BOOL(muted as i32), std::ptr::null()).is_ok() {
                     muted_any = true;
                 }
             }

@@ -61,11 +61,7 @@ pub fn relaunch_elevated(exe_path: &str) -> Result<bool, String> {
     unsafe {
         match ShellExecuteExW(&mut info) {
             Ok(()) => Ok(true),
-            Err(error)
-                if error.code() == HRESULT::from_win32(ERROR_CANCELLED.0) =>
-            {
-                Ok(false)
-            }
+            Err(error) if error.code() == HRESULT::from_win32(ERROR_CANCELLED.0) => Ok(false),
             Err(error) => Err(error.message()),
         }
     }

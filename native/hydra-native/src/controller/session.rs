@@ -13,7 +13,7 @@ use super::hide;
 use super::ids::{Model, Transport};
 use super::mapping::{apply_profile, derive_digital_bits, lightbar_for};
 use super::state::{OutputState, ParsedState, ProfileSpec, TriggerEffect};
-use super::types::{ControllerEvent, ControllerDeviceInfo};
+use super::types::{ControllerDeviceInfo, ControllerEvent};
 use super::virtualpad::{self, VirtualPad};
 use super::{ds4, dual_sense, Emitter};
 
@@ -129,8 +129,18 @@ pub fn spawn_session(
         let device_path = info.path.clone();
         move || {
             io_loop(
-                device, model, transport, device_id, device_path, cmd_rx, latest,
-                raw_latest, manual_rgb, profile, emitter, stop,
+                device,
+                model,
+                transport,
+                device_id,
+                device_path,
+                cmd_rx,
+                latest,
+                raw_latest,
+                manual_rgb,
+                profile,
+                emitter,
+                stop,
             );
             alive.store(false, Ordering::Relaxed);
         }
@@ -158,12 +168,7 @@ fn build_output(model: Model, transport: Transport, out: &OutputState) -> Vec<u8
     }
 }
 
-fn parse_frame(
-    model: Model,
-    transport: Transport,
-    buf: &[u8],
-    state: &mut ParsedState,
-) -> bool {
+fn parse_frame(model: Model, transport: Transport, buf: &[u8], state: &mut ParsedState) -> bool {
     if model.is_ds5() {
         dual_sense::parse_input(buf, transport, state)
     } else {
@@ -282,13 +287,7 @@ fn io_loop(
                         match virtualpad::create_virtual_pad() {
                             Ok(pad) => {
                                 virtual_pad = Some(pad);
-                                emit_status(
-                                    &emitter,
-                                    &device_id,
-                                    "virtualOutput",
-                                    "enabled",
-                                    None,
-                                );
+                                emit_status(&emitter, &device_id, "virtualOutput", "enabled", None);
                             }
                             Err(err) => emit_status(
                                 &emitter,
@@ -318,9 +317,7 @@ fn io_loop(
                                 Some(err.to_string()),
                             ),
                         }
-                    } else if !enabled
-                        && (hidden_pad.is_some() || hide::is_hidden(&device_path))
-                    {
+                    } else if !enabled && (hidden_pad.is_some() || hide::is_hidden(&device_path)) {
                         hidden_pad = None;
                         if hide::is_hidden(&device_path) {
                             let _ = hide::unhide(&device_path);

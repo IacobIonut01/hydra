@@ -95,9 +95,7 @@ mod tests {
         report[8] = 0xFF;
         seal_bt_output(&mut report);
         let expected = crc32_with_head(BT_OUTPUT_HEAD, &report[..BT_CRC_OFFSET]);
-        let stored = u32::from_le_bytes([
-            report[74], report[75], report[76], report[77],
-        ]);
+        let stored = u32::from_le_bytes([report[74], report[75], report[76], report[77]]);
         assert_eq!(expected, stored);
     }
 }
