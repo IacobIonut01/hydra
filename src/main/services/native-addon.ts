@@ -97,6 +97,20 @@ export type NativeControllerEvent = {
   message: string | null;
 };
 
+export type InnoSetupLanguageInfo = {
+  name: string;
+  displayName: string;
+};
+
+export type InnoSetupInfo = {
+  version: string;
+  appName: string | null;
+  languages: InnoSetupLanguageInfo[];
+  componentCount: number;
+  taskCount: number;
+  showLanguageDialog: string;
+};
+
 type HydraNativeModule = {
   torrentInitialize: (port: number) => Promise<void>;
   torrentRequest: (method: string, paramsJson: string) => Promise<string>;
@@ -131,6 +145,8 @@ type HydraNativeModule = {
   sendVirtualKeyChord?: (virtualKeys: number[]) => boolean;
   isTextInputFocused?: () => boolean;
   focusGameWindow?: (executableNames: string[]) => boolean;
+  inspectInnoSetup?: (setupPath: string) => InnoSetupInfo | null;
+  muteAudioByProcessName?: (processName: string, muted: boolean) => boolean;
   buildLocalGameSnapshotPipeline: (
     input: BuildLocalGameSnapshotPipelineInput
   ) => Promise<NativeLocalGameSnapshotPipelineResult>;
@@ -530,6 +546,27 @@ export class NativeAddon {
       return this.load().focusGameWindow?.(executableNames) ?? false;
     } catch (error) {
       logger.error("Failed to focus game window", error);
+      return false;
+    }
+  }
+
+  public static inspectInnoSetup(setupPath: string): InnoSetupInfo | null {
+    try {
+      return this.load().inspectInnoSetup?.(setupPath) ?? null;
+    } catch (error) {
+      logger.error("Failed to inspect Inno setup", error);
+      return null;
+    }
+  }
+
+  public static muteAudioByProcessName(
+    processName: string,
+    muted: boolean
+  ): boolean {
+    try {
+      return this.load().muteAudioByProcessName?.(processName, muted) ?? false;
+    } catch (error) {
+      logger.error("Failed to mute process audio", error);
       return false;
     }
   }

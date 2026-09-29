@@ -1,9 +1,11 @@
 mod active_window;
+mod audio;
 mod cloud_save;
 mod constants;
 mod controller;
 mod elevation;
 mod focus;
+mod inno_inspector;
 mod input;
 mod torrent;
 
@@ -113,6 +115,60 @@ pub fn is_text_input_focused() -> bool {
 #[napi]
 pub fn focus_game_window(executable_names: Vec<String>) -> napi::Result<bool> {
     focus::focus_game_window(&executable_names).map_err(Error::from_reason)
+}
+
+#[napi(object)]
+pub struct InnoSetupLanguageInfo {
+    pub name: String,
+    pub display_name: String,
+}
+
+#[napi(object)]
+pub struct InnoSetupInfo {
+    pub version: String,
+    pub app_name: Option<String>,
+    pub languages: Vec<InnoSetupLanguageInfo>,
+    pub component_count: u32,
+    pub task_count: u32,
+    pub show_language_dialog: String,
+}
+
+/// Parses a repack's Inno `setup.exe` without running it: languages,
+/// component/task counts and header flags the install pipeline needs for
+/// silent flags. Returns `None` for files that are not a supported
+/// (Unicode, >=6.0) Inno setup.
+#[napi]
+pub fn inspect_inno_setup(setup_path: String) -> napi::Result<Option<InnoSetupInfo>> {
+    let info = inno_inspector::inspect(&setup_path).map_err(Error::from_reason)?;
+    Ok(info.map(|info| InnoSetupInfo {
+        version: info.version,
+        app_name: info.app_name,
+        languages: info
+            .languages
+            .into_iter()
+            .map(|language| InnoSetupLanguageInfo {
+                name: language.name,
+                display_name: language.display_name,
+            })
+            .collect(),
+        component_count: info.component_count,
+        task_count: info.task_count,
+        show_language_dialog: match info.show_language_dialog {
+            inno_inspector::ShowLanguageDialog::Yes => "yes",
+            inno_inspector::ShowLanguageDialog::No => "no",
+            inno_inspector::ShowLanguageDialog::Auto => "auto",
+        }
+        .to_string(),
+    }))
+}
+
+/// Mutes (or unmutes) the audio session of every process whose executable
+/// basename matches — used to silence Inno repack music during silent
+/// installs, which no setup flag can disable. Audio sessions appear lazily,
+/// so callers poll until this returns true or their window closes.
+#[napi]
+pub fn mute_audio_by_process_name(process_name: String, muted: bool) -> napi::Result<bool> {
+    audio::mute_audio_by_process_name(&process_name, muted).map_err(Error::from_reason)
 }
 
 #[napi]

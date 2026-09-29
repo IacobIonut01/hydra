@@ -35,6 +35,7 @@ import {
 } from "@types";
 
 import { findInstallerInFolder } from "./installer-locator";
+import { pickInnoSetupLanguage } from "./inno-inspector";
 import { startInstallProgressMonitor } from "./install-progress-monitor";
 import {
   executeGameInstaller,
@@ -58,6 +59,7 @@ const INNO_COMPLETION_WAIT_MS = 45 * 60_000;
 const INNO_COMPLETION_POLL_MS = 10_000;
 const SPLASH_UNLOCK_WINDOW_MS = 60_000;
 const SPLASH_UNLOCK_POLL_MS = 1_500;
+const INSTALLER_AUDIO_MUTE_POLL_MS = 2_000;
 // Repacks decompress to roughly twice their compressed size; used only as a
 // preflight estimate when no better number exists.
 const INSTALLED_SIZE_ESTIMATE_FACTOR = 2;
@@ -73,6 +75,7 @@ interface ActiveInstall {
   cancelling: boolean;
   stopProgressMonitor: (() => void) | null;
   stopSplashWatch: (() => void) | null;
+  stopAudioMuteWatch: (() => void) | null;
   attemptStartedAt: number;
   seedingWasPaused: boolean;
 }
@@ -369,6 +372,43 @@ const watchForSplashAndUnlock = (installerPath: string): (() => void) => {
   };
 };
 
+/**
+ * Inno repacks play music from a [Code]-spawned audio session that no
+ * silent flag disables. The session is created lazily inside the setup
+ * process -- and any elevated respawn keeps the same exe basename -- so
+ * poll for the install's lifetime and SetMute whatever sessions a
+ * toolhelp match finds. Returns a disposer that stops polling and
+ * best-effort unmutes in case the installer outlives the attempt.
+ */
+const watchInstallerAudioAndMute = (installerPath: string): (() => void) => {
+  const exeName = path.basename(installerPath);
+  let timer: NodeJS.Timeout | null = null;
+  let stopped = false;
+
+  const poll = () => {
+    if (stopped || activeInstall === null) return;
+    try {
+      NativeAddon.muteAudioByProcessName(exeName, true);
+    } catch {
+      // addon unavailable -- the music stays, nothing else to do
+    }
+    timer = setTimeout(poll, INSTALLER_AUDIO_MUTE_POLL_MS);
+  };
+
+  poll();
+
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+    timer = null;
+    try {
+      NativeAddon.muteAudioByProcessName(exeName, false);
+    } catch {
+      // best effort
+    }
+  };
+};
+
 const runInstall = async (queued: QueuedInstall): Promise<void> => {
   const { shop, objectId } = queued;
   const gameKey = levelKeys.game(shop, objectId);
@@ -457,6 +497,7 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
 
     activeInstall?.stopProgressMonitor?.();
     activeInstall?.stopSplashWatch?.();
+    activeInstall?.stopAudioMuteWatch?.();
     activeInstall = null;
   };
 
@@ -542,6 +583,7 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
     attemptStartedAt: Date.now(),
     seedingWasPaused: false,
     stopSplashWatch: null,
+    stopAudioMuteWatch: null,
   };
 
   if (
@@ -560,6 +602,14 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
 
   const interactiveAllowed = userPreferences?.autoInstallInteractive ?? true;
   const innoLogPath = path.join(gamePath, "hydra-inno-install.log");
+
+  // Read the setup's own [Languages] table so /LANG names a language the
+  // repack actually ships instead of guessing "english". Falls back to
+  // "english" when the header cannot be parsed; a rejected name still
+  // gets the retry-without-/LANG path below.
+  const innoLanguage = pickInnoSetupLanguage(
+    NativeAddon.inspectInnoSetup(installer.path)
+  );
 
   const completeSuccessfulInstall = async () => {
     const boundExePath = await rescanAndBindExecutableAfterInstall(
@@ -645,13 +695,17 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
         ? buildInnoSilentArgs(
             toInstallerDirArg(installDirPath, winePrefixPath),
             toInstallerDirArg(innoLogPath, winePrefixPath),
-            withLanguageParam ? "english" : undefined
+            withLanguageParam ? innoLanguage : undefined
           )
         : [];
 
       if (silent && process.platform === "win32") {
         activeInstall!.stopSplashWatch?.();
         activeInstall!.stopSplashWatch = watchForSplashAndUnlock(
+          installer.path
+        );
+        activeInstall!.stopAudioMuteWatch?.();
+        activeInstall!.stopAudioMuteWatch = watchInstallerAudioAndMute(
           installer.path
         );
       }

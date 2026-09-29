@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"
@@ -15,6 +15,8 @@ globset = "=0.4.15"
 hidapi = { version = "=2.6.7", default-features = false, features = ["linux-native"] }
 image = { version = "0.25.8", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 indexmap = { version = "2.14", features = ["serde"] }
+crc32fast = "1"
+lzma-rs = "0.3"
 mime_guess = "2.0.5"
 napi = { version = "3.5.2", default-features = false, features = ["napi8", "tokio_rt"] }
 napi-derive = "3.3.2"
