@@ -23,11 +23,17 @@ export default defineConfig(({ mode }) => {
           "@locales": resolve("src/locales"),
           "@resources": resolve("resources"),
           "@shared": resolve("src/shared"),
+          "@types": resolve("src/types/index.ts"),
         },
       },
       plugins: [externalizeDepsPlugin(), swcPlugin()],
     },
     preload: {
+      resolve: {
+        alias: {
+          "@types": resolve("src/types/index.ts"),
+        },
+      },
       plugins: [externalizeDepsPlugin()],
     },
     bigPicture: {
@@ -48,6 +54,7 @@ export default defineConfig(({ mode }) => {
           "@renderer": resolve("src/renderer/src"),
           "@locales": resolve("src/locales"),
           "@shared": resolve("src/shared"),
+          "@types": resolve("src/types/index.ts"),
         },
       },
       plugins: [svgr(), react()],
@@ -74,6 +81,7 @@ export default defineConfig(({ mode }) => {
           "@renderer": resolve("src/renderer/src"),
           "@locales": resolve("src/locales"),
           "@shared": resolve("src/shared"),
+          "@types": resolve("src/types/index.ts"),
         },
       },
       plugins: [svgr(), react()],
