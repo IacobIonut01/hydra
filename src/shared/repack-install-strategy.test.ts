@@ -22,9 +22,18 @@ describe("resolveRepackInstallStrategy", () => {
     }
   });
 
+  it("returns splash-unlock for repackers with a key-gated splash", () => {
+    for (const downloadSourceName of ["DODI Repacks", "dodi", "DODI Repack"]) {
+      assert.equal(
+        resolveRepackInstallStrategy({ downloadSourceName }),
+        "splash-unlock",
+        downloadSourceName
+      );
+    }
+  });
+
   it("returns inno-silent for installer-based repackers", () => {
     for (const downloadSourceName of [
-      "DODI Repacks",
       "FitGirl Repacks",
       "fitgirl",
       "XATAB",
@@ -60,7 +69,7 @@ describe("resolveRepackInstallStrategy", () => {
         downloadSourceName: "Community Uploads",
         repackTitle: "Some Game v1.2.3 (DODI Repack)",
       }),
-      "inno-silent"
+      "splash-unlock"
     );
   });
 

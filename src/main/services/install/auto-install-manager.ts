@@ -9,6 +9,7 @@ import {
   DownloadManager,
   getDiskUsage,
   logger,
+  NativeAddon,
   Wine,
   WindowManager,
 } from "@main/services";
@@ -23,12 +24,14 @@ import {
   resolveRepackInstallStrategy,
   sanitizeInstallDirName,
 } from "@shared";
-import type {
-  Download,
-  Game,
-  GameShop,
-  InstallFailure,
-  UserPreferences,
+import {
+  VK_RETURN,
+  VK_UP,
+  type Download,
+  type Game,
+  type GameShop,
+  type InstallFailure,
+  type UserPreferences,
 } from "@types";
 
 import { findInstallerInFolder } from "./installer-locator";
@@ -39,10 +42,22 @@ import {
   scheduleRescanPoll,
 } from "./installer-runner";
 
-// A silent Inno run that dies or reports success this fast without writing
-// anything never installed -- the flags were rejected or the payload could
-// not be read. That is the escalation signal, not a real install.
+// A silent Inno run that dies or reports success this fast without leaving
+// any evidence of activity never installed -- the flags were rejected or
+// the payload could not be read. That is the escalation signal, not a real
+// install.
 const SILENT_FAIL_THRESHOLD_MS = 60_000;
+// The delegated Inno process can take a few seconds to open the /LOG file
+// after the bootstrapper exits, so give it a grace window before deciding
+// the silent run never took.
+const INNO_LOG_GRACE_MS = 12_000;
+// When the wrapper exited but Inno activity is still visible, the real
+// installer is a detached child: wait for Inno to drop its uninstaller
+// (unins*.exe/.dat) rather than declaring victory at bootstrapper exit.
+const INNO_COMPLETION_WAIT_MS = 45 * 60_000;
+const INNO_COMPLETION_POLL_MS = 10_000;
+const SPLASH_UNLOCK_WINDOW_MS = 60_000;
+const SPLASH_UNLOCK_POLL_MS = 1_500;
 // Repacks decompress to roughly twice their compressed size; used only as a
 // preflight estimate when no better number exists.
 const INSTALLED_SIZE_ESTIMATE_FACTOR = 2;
@@ -57,6 +72,7 @@ interface ActiveInstall {
   child: ChildProcess | null;
   cancelling: boolean;
   stopProgressMonitor: (() => void) | null;
+  stopSplashWatch: (() => void) | null;
   attemptStartedAt: number;
   seedingWasPaused: boolean;
 }
@@ -250,6 +266,105 @@ const directoryIsEmptyOrMissing = (dirPath: string) => {
   }
 };
 
+const INNO_UNINSTALL_MARKER = /^unins.*\.(exe|dat|msg)$/i;
+
+const innoLogAppears = (logPath: string, timeoutMs: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const check = () => {
+      if (fs.existsSync(logPath)) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, 500);
+    };
+    check();
+  });
+
+const waitForInnoUninstallMarker = (
+  installDirPath: string,
+  timeoutMs: number
+): Promise<boolean> =>
+  new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const check = () => {
+      let found = false;
+      try {
+        found = fs
+          .readdirSync(installDirPath)
+          .some((entry) => INNO_UNINSTALL_MARKER.test(entry));
+      } catch {
+        // dir missing -- keep polling, the delegated installer may create it
+      }
+      if (found) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, INNO_COMPLETION_POLL_MS);
+    };
+    check();
+  });
+
+/**
+ * DODI-style wrappers paint a key-gated splash before Inno proper: the
+ * installer window must be focused and sent Up + Enter to unlock the
+ * wizard. Poll for the window, fire the chord once when it appears, and
+ * stop -- repeat sends could advance a real wizard page unintentionally.
+ * Returns a disposer; the chord best-effort depends on the native addon.
+ */
+const watchForSplashAndUnlock = (installerPath: string): (() => void) => {
+  const exeName = path.basename(installerPath);
+  let timer: NodeJS.Timeout | null = null;
+  let unlocked = false;
+  const deadline = Date.now() + SPLASH_UNLOCK_WINDOW_MS;
+
+  const poll = () => {
+    if (unlocked || Date.now() >= deadline || activeInstall === null) return;
+
+    let focused = false;
+    try {
+      focused = NativeAddon.focusGameWindow?.([exeName]) ?? false;
+    } catch {
+      focused = false;
+    }
+
+    if (focused) {
+      unlocked = true;
+      try {
+        NativeAddon.sendVirtualKeyChord?.([VK_UP]);
+        setTimeout(() => {
+          try {
+            NativeAddon.sendVirtualKeyChord?.([VK_RETURN]);
+          } catch {
+            // chord injection unavailable -- the splash stays up and the
+            // install simply waits for manual input
+          }
+        }, 600);
+      } catch {
+        // same non-fatal path
+      }
+      return;
+    }
+
+    timer = setTimeout(poll, SPLASH_UNLOCK_POLL_MS);
+  };
+
+  poll();
+
+  return () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+};
+
 const runInstall = async (queued: QueuedInstall): Promise<void> => {
   const { shop, objectId } = queued;
   const gameKey = levelKeys.game(shop, objectId);
@@ -321,7 +436,23 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
       }
     }
 
+    // A needs-interaction install can still be completed by hand; keep the
+    // rescan poll running so the exe binds whenever the user finishes it.
+    if (
+      params.failure?.reason === "needs-interaction" &&
+      download?.folderName
+    ) {
+      scheduleRescanPoll(
+        shop,
+        objectId,
+        gamePath,
+        winePrefixPath,
+        installDirPath
+      );
+    }
+
     activeInstall?.stopProgressMonitor?.();
+    activeInstall?.stopSplashWatch?.();
     activeInstall = null;
   };
 
@@ -406,7 +537,16 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
     ),
     attemptStartedAt: Date.now(),
     seedingWasPaused: false,
+    stopSplashWatch: null,
   };
+
+  const strategy = resolveRepackInstallStrategy({
+    downloadSourceName: download.downloadSourceName,
+    repackTitle: download.repackTitle,
+  });
+  if (strategy === "splash-unlock" && process.platform === "win32") {
+    activeInstall.stopSplashWatch = watchForSplashAndUnlock(installer.path);
+  }
 
   if (
     userPreferences?.pauseSeedingWhileInstalling &&
@@ -552,25 +692,49 @@ const runInstall = async (queued: QueuedInstall): Promise<void> => {
             const wroteNothing = directoryIsEmptyOrMissing(installDirPath);
             const installTook = code === 0 || code === null;
 
-            if (
-              silent &&
-              (!installTook ||
-                (ranMs < SILENT_FAIL_THRESHOLD_MS && wroteNothing))
-            ) {
-              if (interactiveAllowed) {
-                logger.info(
-                  `[AutoInstallManager] Silent install for ${gameKey} did not take (code=${code}, ranMs=${ranMs}); retrying interactively`
-                );
-                await runInstallerAttempt(false);
+            if (silent && (!installTook || ranMs < SILENT_FAIL_THRESHOLD_MS)) {
+              // A clean exit that left Inno evidence behind (files in the
+              // install dir or a /LOG that opened) means the bootstrapper
+              // handed off to a detached child that is still unpacking.
+              // Everything else means the silent run never took -- rejected
+              // flags, declined UAC -- and only then is escalation right.
+              const silentTook = installTook
+                ? !wroteNothing ||
+                  (await innoLogAppears(innoLogPath, INNO_LOG_GRACE_MS))
+                : false;
+
+              if (!silentTook) {
+                if (interactiveAllowed) {
+                  logger.info(
+                    `[AutoInstallManager] Silent install for ${gameKey} did not take (code=${code}, ranMs=${ranMs}); retrying interactively`
+                  );
+                  await runInstallerAttempt(false);
+                  resolveAttempt();
+                  return;
+                }
+
+                await finishInstall({
+                  failure: installTook
+                    ? { reason: "needs-interaction" }
+                    : { reason: "installer-exit", exitCode: code },
+                });
                 resolveAttempt();
                 return;
               }
 
-              await finishInstall({
-                failure: installTook
-                  ? { reason: "needs-interaction" }
-                  : { reason: "installer-exit", exitCode: code },
-              });
+              logger.info(
+                `[AutoInstallManager] Installer for ${gameKey} exited with Inno activity still visible; waiting for the detached installer`
+              );
+              const detachedFinished = await waitForInnoUninstallMarker(
+                installDirPath,
+                INNO_COMPLETION_WAIT_MS
+              );
+              if (!detachedFinished) {
+                logger.warn(
+                  `[AutoInstallManager] Timed out waiting for detached installer for ${gameKey}; completing anyway`
+                );
+              }
+              await completeSuccessfulInstall();
               resolveAttempt();
               return;
             }

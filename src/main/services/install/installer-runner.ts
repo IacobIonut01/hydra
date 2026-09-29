@@ -279,6 +279,7 @@ const launchInstallerDirectly = async (
       detached: true,
       stdio: "ignore",
       shell: false,
+      windowsHide: true,
     });
 
     child.once("spawn", () => {
@@ -293,6 +294,57 @@ const launchInstallerDirectly = async (
 
     child.once("error", (error) => {
       logger.error("Failed to execute game installer directly", error);
+      resolve(false);
+    });
+  });
+};
+
+// Repack Inno setups carry a requireAdministrator manifest, so a
+// non-elevated Hydra cannot spawn them -- CreateProcess returns
+// ERROR_ELEVATION_REQUIRED. Start-Process -Verb RunAs is the supported way
+// to elevate from a non-elevated parent AND it preserves our Inno silent
+// args, which shell.openPath would drop. -Wait -PassThru lets the
+// (non-elevated) powershell wrapper observe the elevated child's exit code,
+// so the install pipeline still gets a real completion signal.
+const toPowerShellLiteral = (value: string) => `'${value.replace(/'/g, "''")}'`;
+
+const launchInstallerElevated = async (
+  filePath: string,
+  args: string[],
+  onExit?: (code: number | null, signal: NodeJS.Signals | null) => void,
+  onChildSpawned?: (child: ChildProcess) => void
+): Promise<boolean> => {
+  return await new Promise<boolean>((resolve) => {
+    const argumentList = args.map(toPowerShellLiteral).join(", ");
+    const command =
+      `$p = Start-Process -FilePath ${toPowerShellLiteral(filePath)} ` +
+      `-ArgumentList @(${argumentList}) -Verb RunAs -Wait -PassThru ` +
+      `-ErrorAction Stop; exit $p.ExitCode`;
+
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", command],
+      {
+        detached: true,
+        stdio: "ignore",
+        shell: false,
+        windowsHide: true,
+      }
+    );
+
+    child.once("spawn", () => {
+      onChildSpawned?.(child);
+      if (!onChildSpawned) child.unref();
+      resolve(true);
+    });
+
+    child.once("exit", (code, signal) => {
+      // UAC declined surfaces as exit code 1 from the throwing Start-Process.
+      onExit?.(code, signal);
+    });
+
+    child.once("error", (error) => {
+      logger.error("Failed to launch installer elevated via powershell", error);
       resolve(false);
     });
   });
@@ -333,6 +385,16 @@ export const executeGameInstaller = async (
       options?.onChildSpawned
     );
     if (launchedDirectly) {
+      return true;
+    }
+
+    const launchedElevated = await launchInstallerElevated(
+      filePath,
+      args,
+      options?.onExit,
+      options?.onChildSpawned
+    );
+    if (launchedElevated) {
       return true;
     }
 

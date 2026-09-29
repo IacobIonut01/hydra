@@ -12,6 +12,7 @@
 export type RepackInstallStrategy =
   | "preinstalled"
   | "inno-silent"
+  | "splash-unlock"
   | "auto-attempt";
 
 export interface RepackInstallContext {
@@ -35,9 +36,15 @@ const PREINSTALLED_SOURCE_PATTERNS = [
   /\brazor\s*1911\b/i,
 ];
 
+// Repackers whose Inno wrapper paints a custom splash that intercepts the
+// wizard until a physical "Up Arrow" keypress unlocks it (DODI; scene-ISO
+// wrappers share the same mechanism). Silent flags alone hang behind the
+// splash, so these get the key-sending unlock path instead of plain
+// inno-silent.
+const SPLASH_UNLOCK_SOURCE_PATTERNS = [/\bdodi\b/i];
+
 const INNO_SILENT_SOURCE_PATTERNS = [
   /fit[\s-]*girl/i,
-  /\bdodi\b/i,
   /\bxatab\b/i,
   /\bkaos/i,
   /masquerade/i,
@@ -64,6 +71,14 @@ export const resolveRepackInstallStrategy = (
       PREINSTALLED_SOURCE_PATTERNS.some((pattern) => pattern.test(haystack))
     ) {
       return "preinstalled";
+    }
+  }
+
+  for (const haystack of haystacks) {
+    if (
+      SPLASH_UNLOCK_SOURCE_PATTERNS.some((pattern) => pattern.test(haystack))
+    ) {
+      return "splash-unlock";
     }
   }
 
